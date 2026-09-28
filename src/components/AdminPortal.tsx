@@ -1,0 +1,2603 @@
+import React, { useState } from 'react';
+import {
+  Product,
+  Season,
+  LadiesUnstitchedCategory,
+  PieceType,
+  ProductReview,
+  PreviewAppointment,
+} from '../types/clothing';
+import {
+  SiteConfig,
+  DEFAULT_SITE_CONFIG,
+} from '../types/siteConfig';
+import {
+  HERO_IMAGE,
+  SUMMER_LAWN_IMAGE,
+  LAWN_PRINTS_IMAGE,
+  DHANAK_KHADDAR_IMAGE,
+  VELVET_CRAFT_IMAGE,
+  EDITORIAL_MODEL_IMAGE,
+} from '../data/products';
+import {
+  Lock,
+  Unlock,
+  ShieldCheck,
+  Eye,
+  LogOut,
+  Save,
+  RotateCcw,
+  Check,
+  Plus,
+  Trash2,
+  Edit,
+  LayoutTemplate,
+  Layers,
+  ShoppingBag,
+  CreditCard,
+  Share2,
+  FileText,
+  Calendar,
+  Key,
+  ExternalLink,
+  Search,
+  ArrowRight,
+  Sparkles,
+  Phone,
+  Instagram,
+  AlertCircle,
+} from 'lucide-react';
+
+interface AdminPortalProps {
+  siteConfig: SiteConfig;
+  onUpdateSiteConfig: (newConfig: SiteConfig) => void;
+  products: Product[];
+  onUpdateProducts: (newProducts: Product[]) => void;
+  appointments: PreviewAppointment[];
+  reviews: ProductReview[];
+  onDeleteReview: (reviewId: string) => void;
+  onExitAdmin: () => void;
+}
+
+const PRESET_ASSET_IMAGES = [
+  { name: 'Editorial Lawn Banner', url: HERO_IMAGE },
+  { name: 'Summer Lawn Suit', url: SUMMER_LAWN_IMAGE },
+  { name: 'Lawn Digital Prints', url: LAWN_PRINTS_IMAGE },
+  { name: 'Winter Dhanak & Khaddar', url: DHANAK_KHADDAR_IMAGE },
+  { name: 'Summer Model Feature', url: EDITORIAL_MODEL_IMAGE },
+];
+
+export const AdminPortal: React.FC<AdminPortalProps> = ({
+  siteConfig,
+  onUpdateSiteConfig,
+  products,
+  onUpdateProducts,
+  appointments,
+  reviews,
+  onDeleteReview,
+  onExitAdmin,
+}) => {
+  // Authentication State
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem('zavraan_admin_auth') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [passcodeAttempt, setPasscodeAttempt] = useState('');
+  const [authError, setAuthError] = useState('');
+
+  // Active Tab in Management Center
+  type AdminTab =
+    | 'home'
+    | 'categories'
+    | 'products'
+    | 'payments'
+    | 'social'
+    | 'footer'
+    | 'appointments_reviews'
+    | 'security';
+  const [activeTab, setActiveTab] = useState<AdminTab>('home');
+
+  // Local drafts
+  const [draftConfig, setDraftConfig] = useState<SiteConfig>(siteConfig);
+  const [draftProducts, setDraftProducts] = useState<Product[]>(products);
+  const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
+
+  // Product Editing / Creation State
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [isCreatingProduct, setIsCreatingProduct] = useState(false);
+  const [productSearch, setProductSearch] = useState('');
+  const [productSeasonFilter, setProductSeasonFilter] = useState<'all' | Season>('all');
+
+  // Blank product template for creation
+  const blankProduct: Product = {
+    id: `zv-${Date.now().toString().slice(-6)}`,
+    name: '',
+    sku: `ZV-${Math.floor(100 + Math.random() * 900)}`,
+    season: 'summer',
+    category: 'Lawn Printed Suits',
+    pieces: '3-Piece Suit',
+    pricePKR: 6500,
+    priceUSD: 24,
+    primaryImage: LAWN_PRINTS_IMAGE,
+    secondaryImage: SUMMER_LAWN_IMAGE,
+    macroImage: LAWN_PRINTS_IMAGE,
+    fabricDetails: {
+      shirt: '3.10M Combed Swiss Lawn',
+      dupattaOrTrouser: '2.50M Chiffon Dupatta',
+      trouser: '2.50M Dyed Cambric',
+      embroideryPatches: 'Embroidered neckline lace',
+      fabricCutMeters: '8.10 Meters',
+      weightGrams: 500,
+      weaveSpec: '80s Combed Lawn',
+    },
+    colorName: 'Rose Petal',
+    colorHex: '#DCAE96',
+    description: '',
+    stylingTips: '',
+    isNewArrival: true,
+    isBestseller: false,
+    inStock: true,
+    averageRating: 5.0,
+    totalReviews: 0,
+  };
+
+  const showToast = (msg: string) => {
+    setFeedbackMsg(msg);
+    setTimeout(() => setFeedbackMsg(null), 3500);
+  };
+
+  // Auth Handler
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passcodeAttempt.trim() === draftConfig.adminPasscode) {
+      setIsAuthenticated(true);
+      setAuthError('');
+      try {
+        sessionStorage.setItem('zavraan_admin_auth', 'true');
+      } catch (err) {
+        console.error(err);
+      }
+    } else {
+      setAuthError('Unauthorized: The passcode entered is incorrect. Access denied.');
+    }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    try {
+      sessionStorage.removeItem('zavraan_admin_auth');
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Save changes to Global App State & Storage
+  const handleSaveConfig = () => {
+    onUpdateSiteConfig(draftConfig);
+    showToast('Atelier settings updated and published to customer store!');
+  };
+
+  const handleSaveProducts = (updatedProds: Product[]) => {
+    setDraftProducts(updatedProds);
+    onUpdateProducts(updatedProds);
+    showToast('Catalog updated successfully!');
+  };
+
+  // Reset to Factory Defaults
+  const handleResetDefaults = () => {
+    if (
+      window.confirm(
+        'Are you sure you want to reset all site titles, home content, payment accounts, and categories to factory defaults?'
+      )
+    ) {
+      setDraftConfig(DEFAULT_SITE_CONFIG);
+      onUpdateSiteConfig(DEFAULT_SITE_CONFIG);
+      showToast('All site configurations reset to factory defaults.');
+    }
+  };
+
+  // ================= RENDER ACCESS GATE (IF UNAUTHENTICATED) =================
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-[#141211] text-stone-200 flex flex-col justify-center items-center p-4 selection:bg-amber-800">
+        <div className="max-w-md w-full bg-[#1C1A18] border border-stone-800 rounded-sm p-8 shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-700 via-amber-500 to-amber-800" />
+
+          <div className="text-center mb-6">
+            <div className="w-14 h-14 bg-stone-900 border border-amber-900/60 text-amber-400 rounded-full flex items-center justify-center mx-auto mb-3 shadow-inner">
+              <Lock className="w-6 h-6" />
+            </div>
+            <span className="text-[10px] uppercase tracking-[0.3em] text-amber-500/90 font-semibold block mb-1">
+              Restricted Management Portal
+            </span>
+            <h1 className="text-2xl font-serif text-white tracking-wide">
+              Zavraan Atelier System
+            </h1>
+            <p className="text-xs text-stone-400 mt-2 leading-relaxed font-light">
+              This area is strictly restricted to store directors and administrative staff. Normal customers and visitors cannot access this console.
+            </p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-xs uppercase tracking-wider text-stone-400 font-medium mb-1.5">
+                Master Security Passcode
+              </label>
+              <input
+                type="password"
+                required
+                autoFocus
+                value={passcodeAttempt}
+                onChange={(e) => {
+                  setPasscodeAttempt(e.target.value);
+                  setAuthError('');
+                }}
+                placeholder="Enter admin passcode"
+                className="w-full bg-[#121110] border border-stone-700 rounded-xs px-3.5 py-2.5 text-sm text-white placeholder-stone-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 font-mono transition-all"
+              />
+            </div>
+
+            {authError && (
+              <div className="p-3 bg-red-950/60 border border-red-800 text-red-300 text-xs flex items-start gap-2 rounded-xs animate-fadeIn">
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-400 mt-0.5" />
+                <span>{authError}</span>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="w-full bg-amber-700 hover:bg-amber-600 text-white text-xs uppercase tracking-[0.2em] font-medium py-3 rounded-xs cursor-pointer shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
+            >
+              <Unlock className="w-4 h-4" />
+              <span>Unlock Admin Panel</span>
+            </button>
+          </form>
+
+          <div className="mt-6 pt-5 border-t border-stone-800/80 flex items-center justify-between text-xs text-stone-500">
+            <span className="text-[11px]">Default Passcode: zavraan@admin2026</span>
+            <button
+              onClick={onExitAdmin}
+              className="text-stone-400 hover:text-amber-400 cursor-pointer flex items-center gap-1 transition-colors"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span>Back to Store</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ================= RENDER DEDICATED ADMIN CONTROL CENTER =================
+  return (
+    <div className="min-h-screen bg-[#F4F3EF] text-stone-900 flex flex-col font-sans">
+      {/* Toast Alert */}
+      {feedbackMsg && (
+        <div className="fixed bottom-6 right-6 z-50 bg-stone-900 text-white px-5 py-3 text-xs font-medium shadow-2xl flex items-center gap-2.5 border border-amber-600/50 rounded-xs animate-fadeIn">
+          <Check className="w-4 h-4 text-emerald-400" />
+          <span>{feedbackMsg}</span>
+        </div>
+      )}
+
+      {/* Admin Top Navigation Bar */}
+      <header className="bg-[#1A1817] text-white border-b border-stone-800 sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-amber-700/80 border border-amber-500/50 flex items-center justify-center font-serif font-bold text-amber-200 text-sm">
+              Z
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-serif text-lg tracking-wider font-medium text-white">
+                  ZAVRAAN
+                </span>
+                <span className="bg-amber-900/60 border border-amber-700/60 text-amber-300 text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-semibold">
+                  Separate Master Admin
+                </span>
+              </div>
+              <p className="text-[10px] text-stone-400 font-light">
+                Secure management workspace · Isolated from customer view
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSaveConfig}
+              className="bg-amber-600 hover:bg-amber-500 text-white text-xs px-4 py-2 font-medium flex items-center gap-1.5 rounded-xs transition-colors shadow-sm cursor-pointer"
+              title="Save all changes live"
+            >
+              <Save className="w-3.5 h-3.5" />
+              <span>Publish All Changes</span>
+            </button>
+
+            <button
+              onClick={onExitAdmin}
+              className="bg-white/10 hover:bg-white/20 text-stone-200 text-xs px-3.5 py-2 font-medium flex items-center gap-1.5 rounded-xs transition-colors cursor-pointer border border-white/15"
+              title="Preview Customer Website"
+            >
+              <Eye className="w-3.5 h-3.5 text-amber-300" />
+              <span>View Customer Store</span>
+            </button>
+
+            <button
+              onClick={handleLogout}
+              className="text-stone-400 hover:text-white p-2 cursor-pointer transition-colors"
+              title="Lock Admin Panel"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Tab Strip */}
+        <div className="bg-[#121110] border-t border-stone-800/80 px-4 sm:px-6 lg:px-8 overflow-x-auto">
+          <div className="max-w-7xl mx-auto flex items-center gap-1 text-xs py-1">
+            <button
+              onClick={() => setActiveTab('home')}
+              className={`px-3.5 py-2 font-medium flex items-center gap-2 rounded-xs whitespace-nowrap transition-colors cursor-pointer ${
+                activeTab === 'home'
+                  ? 'bg-amber-800/90 text-white'
+                  : 'text-stone-400 hover:text-stone-200 hover:bg-white/5'
+              }`}
+            >
+              <LayoutTemplate className="w-3.5 h-3.5" />
+              <span>1. Home Screen Content</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('categories')}
+              className={`px-3.5 py-2 font-medium flex items-center gap-2 rounded-xs whitespace-nowrap transition-colors cursor-pointer ${
+                activeTab === 'categories'
+                  ? 'bg-amber-800/90 text-white'
+                  : 'text-stone-400 hover:text-stone-200 hover:bg-white/5'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>2. Categories & Titles</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('products')}
+              className={`px-3.5 py-2 font-medium flex items-center gap-2 rounded-xs whitespace-nowrap transition-colors cursor-pointer ${
+                activeTab === 'products'
+                  ? 'bg-amber-800/90 text-white'
+                  : 'text-stone-400 hover:text-stone-200 hover:bg-white/5'
+              }`}
+            >
+              <ShoppingBag className="w-3.5 h-3.5" />
+              <span>3. Products & Prices ({draftProducts.length})</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('payments')}
+              className={`px-3.5 py-2 font-medium flex items-center gap-2 rounded-xs whitespace-nowrap transition-colors cursor-pointer ${
+                activeTab === 'payments'
+                  ? 'bg-amber-800/90 text-white'
+                  : 'text-stone-400 hover:text-stone-200 hover:bg-white/5'
+              }`}
+            >
+              <CreditCard className="w-3.5 h-3.5" />
+              <span>4. Payment Methods</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('social')}
+              className={`px-3.5 py-2 font-medium flex items-center gap-2 rounded-xs whitespace-nowrap transition-colors cursor-pointer ${
+                activeTab === 'social'
+                  ? 'bg-amber-800/90 text-white'
+                  : 'text-stone-400 hover:text-stone-200 hover:bg-white/5'
+              }`}
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span>5. WhatsApp & Social Links</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('footer')}
+              className={`px-3.5 py-2 font-medium flex items-center gap-2 rounded-xs whitespace-nowrap transition-colors cursor-pointer ${
+                activeTab === 'footer'
+                  ? 'bg-amber-800/90 text-white'
+                  : 'text-stone-400 hover:text-stone-200 hover:bg-white/5'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>6. Bottom Footer & Studio</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('appointments_reviews')}
+              className={`px-3.5 py-2 font-medium flex items-center gap-2 rounded-xs whitespace-nowrap transition-colors cursor-pointer ${
+                activeTab === 'appointments_reviews'
+                  ? 'bg-amber-800/90 text-white'
+                  : 'text-stone-400 hover:text-stone-200 hover:bg-white/5'
+              }`}
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              <span>7. Appts & Reviews ({appointments.length}/{reviews.length})</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('security')}
+              className={`px-3.5 py-2 font-medium flex items-center gap-2 rounded-xs whitespace-nowrap transition-colors cursor-pointer ${
+                activeTab === 'security'
+                  ? 'bg-amber-800/90 text-white'
+                  : 'text-stone-400 hover:text-stone-200 hover:bg-white/5'
+              }`}
+            >
+              <Key className="w-3.5 h-3.5" />
+              <span>8. Security & Reset</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Workspace Body */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-1">
+        {/* ================= 1. HOME SCREEN CONTENT TAB ================= */}
+        {activeTab === 'home' && (
+          <div className="bg-white border border-stone-200 rounded-xs shadow-xs p-6 sm:p-8 space-y-6">
+            <div>
+              <span className="text-[11px] uppercase tracking-widest text-amber-900 font-semibold">
+                Homepage Hero & Headlines Management
+              </span>
+              <h2 className="text-2xl font-serif text-stone-900 mt-1">
+                Home Screen Content Elements
+              </h2>
+              <p className="text-xs text-stone-500 mt-1">
+                Customize every title, subtitle, announcement badge, statistics, and button labels on the customer homepage.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-stone-100">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-stone-700 uppercase tracking-wider mb-1">
+                    Announcement Badge / Kicker Text
+                  </label>
+                  <input
+                    type="text"
+                    value={draftConfig.homeScreen.announcementBadge}
+                    onChange={(e) =>
+                      setDraftConfig({
+                        ...draftConfig,
+                        homeScreen: {
+                          ...draftConfig.homeScreen,
+                          announcementBadge: e.target.value,
+                        },
+                      })
+                    }
+                    className="w-full border border-stone-300 p-2.5 text-xs text-stone-900 focus:outline-stone-800"
+                  />
+                  <p className="text-[10px] text-stone-400 mt-1">
+                    Displayed above the main headline on the home screen.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-stone-700 uppercase tracking-wider mb-1">
+                      Main Headline (Line 1)
+                    </label>
+                    <input
+                      type="text"
+                      value={draftConfig.homeScreen.headlinePart1}
+                      onChange={(e) =>
+                        setDraftConfig({
+                          ...draftConfig,
+                          homeScreen: {
+                            ...draftConfig.homeScreen,
+                            headlinePart1: e.target.value,
+                          },
+                        })
+                      }
+                      className="w-full border border-stone-300 p-2.5 text-xs text-stone-900 focus:outline-stone-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-stone-700 uppercase tracking-wider mb-1">
+                      Headline (Line 2 - Italic)
+                    </label>
+                    <input
+                      type="text"
+                      value={draftConfig.homeScreen.headlinePart2}
+                      onChange={(e) =>
+                        setDraftConfig({
+                          ...draftConfig,
+                          homeScreen: {
+                            ...draftConfig.homeScreen,
+                            headlinePart2: e.target.value,
+                          },
+                        })
+                      }
+                      className="w-full border border-stone-300 p-2.5 text-xs text-stone-900 focus:outline-stone-800"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-stone-700 uppercase tracking-wider mb-1">
+                    Sub-Headline / Brand Description
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={draftConfig.homeScreen.subheadline}
+                    onChange={(e) =>
+                      setDraftConfig({
+                        ...draftConfig,
+                        homeScreen: {
+                          ...draftConfig.homeScreen,
+                          subheadline: e.target.value,
+                        },
+                      })
+                    }
+                    className="w-full border border-stone-300 p-2.5 text-xs text-stone-900 focus:outline-stone-800"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-stone-700 uppercase tracking-wider mb-1">
+                      Primary CTA Button Text
+                    </label>
+                    <input
+                      type="text"
+                      value={draftConfig.homeScreen.primaryButtonText}
+                      onChange={(e) =>
+                        setDraftConfig({
+                          ...draftConfig,
+                          homeScreen: {
+                            ...draftConfig.homeScreen,
+                            primaryButtonText: e.target.value,
+                          },
+                        })
+                      }
+                      className="w-full border border-stone-300 p-2.5 text-xs text-stone-900 focus:outline-stone-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-stone-700 uppercase tracking-wider mb-1">
+                      Secondary CTA Button Text
+                    </label>
+                    <input
+                      type="text"
+                      value={draftConfig.homeScreen.secondaryButtonText}
+                      onChange={(e) =>
+                        setDraftConfig({
+                          ...draftConfig,
+                          homeScreen: {
+                            ...draftConfig.homeScreen,
+                            secondaryButtonText: e.target.value,
+                          },
+                        })
+                      }
+                      className="w-full border border-stone-300 p-2.5 text-xs text-stone-900 focus:outline-stone-800"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-stone-700 uppercase tracking-wider mb-1">
+                    Fabric Preview Assurance Note
+                  </label>
+                  <input
+                    type="text"
+                    value={draftConfig.homeScreen.previewNotice}
+                    onChange={(e) =>
+                      setDraftConfig({
+                        ...draftConfig,
+                        homeScreen: {
+                          ...draftConfig.homeScreen,
+                          previewNotice: e.target.value,
+                        },
+                      })
+                    }
+                    className="w-full border border-stone-300 p-2.5 text-xs text-stone-900 focus:outline-stone-800"
+                  />
+                </div>
+              </div>
+
+              {/* Statistics & Image Picker */}
+              <div className="space-y-4">
+                <label className="block text-xs font-semibold text-stone-700 uppercase tracking-wider mb-1">
+                  Homepage Metric Badges (3 Pillars)
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="p-3 bg-stone-50 border border-stone-200">
+                    <input
+                      type="text"
+                      placeholder="Value"
+                      value={draftConfig.homeScreen.stat1Value}
+                      onChange={(e) =>
+                        setDraftConfig({
+                          ...draftConfig,
+                          homeScreen: {
+                            ...draftConfig.homeScreen,
+                            stat1Value: e.target.value,
+                          },
+                        })
+                      }
+                      className="w-full border border-stone-300 p-1.5 text-xs font-mono font-bold"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Label"
+                      value={draftConfig.homeScreen.stat1Label}
+                      onChange={(e) =>
+                        setDraftConfig({
+                          ...draftConfig,
+                          homeScreen: {
+                            ...draftConfig.homeScreen,
+                            stat1Label: e.target.value,
+                          },
+                        })
+                      }
+                      className="w-full border border-stone-300 p-1.5 text-xs mt-1"
+                    />
+                  </div>
+
+                  <div className="p-3 bg-stone-50 border border-stone-200">
+                    <input
+                      type="text"
+                      placeholder="Value"
+                      value={draftConfig.homeScreen.stat2Value}
+                      onChange={(e) =>
+                        setDraftConfig({
+                          ...draftConfig,
+                          homeScreen: {
+                            ...draftConfig.homeScreen,
+                            stat2Value: e.target.value,
+                          },
+                        })
+                      }
+                      className="w-full border border-stone-300 p-1.5 text-xs font-mono font-bold"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Label"
+                      value={draftConfig.homeScreen.stat2Label}
+                      onChange={(e) =>
+                        setDraftConfig({
+                          ...draftConfig,
+                          homeScreen: {
+                            ...draftConfig.homeScreen,
+                            stat2Label: e.target.value,
+                          },
+                        })
+                      }
+                      className="w-full border border-stone-300 p-1.5 text-xs mt-1"
+                    />
+                  </div>
+
+                  <div className="p-3 bg-stone-50 border border-stone-200">
+                    <input
+                      type="text"
+                      placeholder="Value"
+                      value={draftConfig.homeScreen.stat3Value}
+                      onChange={(e) =>
+                        setDraftConfig({
+                          ...draftConfig,
+                          homeScreen: {
+                            ...draftConfig.homeScreen,
+                            stat3Value: e.target.value,
+                          },
+                        })
+                      }
+                      className="w-full border border-stone-300 p-1.5 text-xs font-mono font-bold"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Label"
+                      value={draftConfig.homeScreen.stat3Label}
+                      onChange={(e) =>
+                        setDraftConfig({
+                          ...draftConfig,
+                          homeScreen: {
+                            ...draftConfig.homeScreen,
+                            stat3Label: e.target.value,
+                          },
+                        })
+                      }
+                      className="w-full border border-stone-300 p-1.5 text-xs mt-1"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-stone-700 uppercase tracking-wider mb-1">
+                    Hero Showcase Image (Select Preset or Enter URL)
+                  </label>
+                  <div className="grid grid-cols-3 gap-2 mb-2">
+                    {PRESET_ASSET_IMAGES.slice(0, 3).map((preset) => (
+                      <button
+                        key={preset.name}
+                        type="button"
+                        onClick={() =>
+                          setDraftConfig({
+                            ...draftConfig,
+                            homeScreen: {
+                              ...draftConfig.homeScreen,
+                              heroImage: preset.url,
+                            },
+                          })
+                        }
+                        className={`text-left p-1 border rounded-xs cursor-pointer ${
+                          draftConfig.homeScreen.heroImage === preset.url
+                            ? 'border-amber-700 bg-amber-50 ring-1 ring-amber-700'
+                            : 'border-stone-200 hover:border-stone-400'
+                        }`}
+                      >
+                        <img
+                          src={preset.url}
+                          alt={preset.name}
+                          className="h-16 w-full object-cover rounded-2xs"
+                        />
+                        <span className="block text-[10px] text-stone-700 truncate mt-1">
+                          {preset.name}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <input
+                    type="text"
+                    value={draftConfig.homeScreen.heroImage || HERO_IMAGE}
+                    onChange={(e) =>
+                      setDraftConfig({
+                        ...draftConfig,
+                        homeScreen: {
+                          ...draftConfig.homeScreen,
+                          heroImage: e.target.value,
+                        },
+                      })
+                    }
+                    placeholder="Enter custom image URL"
+                    className="w-full border border-stone-300 p-2 text-xs font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-stone-200 flex justify-end">
+              <button
+                onClick={handleSaveConfig}
+                className="bg-stone-900 hover:bg-stone-800 text-white text-xs uppercase tracking-wider px-6 py-2.5 font-medium cursor-pointer shadow-sm flex items-center gap-2"
+              >
+                <Save className="w-3.5 h-3.5 text-amber-300" />
+                <span>Save Home Screen Content</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ================= 2. CATEGORIES & TITLES TAB ================= */}
+        {activeTab === 'categories' && (
+          <div className="bg-white border border-stone-200 rounded-xs shadow-xs p-6 sm:p-8 space-y-8">
+            <div>
+              <span className="text-[11px] uppercase tracking-widest text-amber-900 font-semibold">
+                Ladies Unstitched Fabric Taxonomies
+              </span>
+              <h2 className="text-2xl font-serif text-stone-900 mt-1">
+                Category Titles & Seasonal Collections
+              </h2>
+              <p className="text-xs text-stone-500 mt-1">
+                Manage collection headlines and specific categories for Summer (Lawn/Cotton) and Winter (Khaddar/Dhanak).
+              </p>
+            </div>
+
+            {/* Summer Collection Categories */}
+            <div className="p-5 bg-amber-50/50 border border-amber-200/80 rounded-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-amber-950 uppercase tracking-wider flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-600" />
+                  <span>Summer Collection Setup</span>
+                </h3>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-stone-700 mb-1">
+                    Summer Collection Title
+                  </label>
+                  <input
+                    type="text"
+                    value={draftConfig.categories.summerCollectionTitle}
+                    onChange={(e) =>
+                      setDraftConfig({
+                        ...draftConfig,
+                        categories: {
+                          ...draftConfig.categories,
+                          summerCollectionTitle: e.target.value,
+                        },
+                      })
+                    }
+                    className="w-full bg-white border border-stone-300 p-2 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-700 mb-1">
+                    Summer Collection Subtitle
+                  </label>
+                  <input
+                    type="text"
+                    value={draftConfig.categories.summerCollectionSubtitle}
+                    onChange={(e) =>
+                      setDraftConfig({
+                        ...draftConfig,
+                        categories: {
+                          ...draftConfig.categories,
+                          summerCollectionSubtitle: e.target.value,
+                        },
+                      })
+                    }
+                    className="w-full bg-white border border-stone-300 p-2 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-stone-700 uppercase tracking-wider mb-2">
+                  Summer Fabric Subcategories
+                </label>
+                <div className="space-y-2">
+                  {draftConfig.categories.summerCategories.map((cat, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <span className="text-xs font-mono text-stone-400 w-5">
+                        {idx + 1}.
+                      </span>
+                      <input
+                        type="text"
+                        value={cat}
+                        onChange={(e) => {
+                          const updated = [...draftConfig.categories.summerCategories];
+                          updated[idx] = e.target.value;
+                          setDraftConfig({
+                            ...draftConfig,
+                            categories: {
+                              ...draftConfig.categories,
+                              summerCategories: updated,
+                            },
+                          });
+                        }}
+                        className="flex-1 bg-white border border-stone-300 p-2 text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = draftConfig.categories.summerCategories.filter(
+                            (_, i) => i !== idx
+                          );
+                          setDraftConfig({
+                            ...draftConfig,
+                            categories: {
+                              ...draftConfig.categories,
+                              summerCategories: updated,
+                            },
+                          });
+                        }}
+                        className="p-2 text-stone-400 hover:text-red-600 cursor-pointer"
+                        title="Delete category"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDraftConfig({
+                      ...draftConfig,
+                      categories: {
+                        ...draftConfig.categories,
+                        summerCategories: [
+                          ...draftConfig.categories.summerCategories,
+                          'New Summer Category',
+                        ],
+                      },
+                    });
+                  }}
+                  className="mt-3 text-xs text-amber-900 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Summer Category</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Winter Collection Categories */}
+            <div className="p-5 bg-stone-100 border border-stone-300/80 rounded-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-stone-900 uppercase tracking-wider flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-stone-800" />
+                  <span>Winter Collection Setup</span>
+                </h3>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-stone-700 mb-1">
+                    Winter Collection Title
+                  </label>
+                  <input
+                    type="text"
+                    value={draftConfig.categories.winterCollectionTitle}
+                    onChange={(e) =>
+                      setDraftConfig({
+                        ...draftConfig,
+                        categories: {
+                          ...draftConfig.categories,
+                          winterCollectionTitle: e.target.value,
+                        },
+                      })
+                    }
+                    className="w-full bg-white border border-stone-300 p-2 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-700 mb-1">
+                    Winter Collection Subtitle
+                  </label>
+                  <input
+                    type="text"
+                    value={draftConfig.categories.winterCollectionSubtitle}
+                    onChange={(e) =>
+                      setDraftConfig({
+                        ...draftConfig,
+                        categories: {
+                          ...draftConfig.categories,
+                          winterCollectionSubtitle: e.target.value,
+                        },
+                      })
+                    }
+                    className="w-full bg-white border border-stone-300 p-2 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-stone-700 uppercase tracking-wider mb-2">
+                  Winter Fabric Subcategories
+                </label>
+                <div className="space-y-2">
+                  {draftConfig.categories.winterCategories.map((cat, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <span className="text-xs font-mono text-stone-400 w-5">
+                        {idx + 1}.
+                      </span>
+                      <input
+                        type="text"
+                        value={cat}
+                        onChange={(e) => {
+                          const updated = [...draftConfig.categories.winterCategories];
+                          updated[idx] = e.target.value;
+                          setDraftConfig({
+                            ...draftConfig,
+                            categories: {
+                              ...draftConfig.categories,
+                              winterCategories: updated,
+                            },
+                          });
+                        }}
+                        className="flex-1 bg-white border border-stone-300 p-2 text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = draftConfig.categories.winterCategories.filter(
+                            (_, i) => i !== idx
+                          );
+                          setDraftConfig({
+                            ...draftConfig,
+                            categories: {
+                              ...draftConfig.categories,
+                              winterCategories: updated,
+                            },
+                          });
+                        }}
+                        className="p-2 text-stone-400 hover:text-red-600 cursor-pointer"
+                        title="Delete category"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDraftConfig({
+                      ...draftConfig,
+                      categories: {
+                        ...draftConfig.categories,
+                        winterCategories: [
+                          ...draftConfig.categories.winterCategories,
+                          'New Winter Category',
+                        ],
+                      },
+                    });
+                  }}
+                  className="mt-3 text-xs text-stone-900 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Winter Category</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-stone-200 flex justify-end">
+              <button
+                onClick={handleSaveConfig}
+                className="bg-stone-900 hover:bg-stone-800 text-white text-xs uppercase tracking-wider px-6 py-2.5 font-medium cursor-pointer shadow-sm flex items-center gap-2"
+              >
+                <Save className="w-3.5 h-3.5 text-amber-300" />
+                <span>Save Category Titles</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ================= 3. PRODUCTS & PRICES TAB ================= */}
+        {activeTab === 'products' && (
+          <div className="bg-white border border-stone-200 rounded-xs shadow-xs p-6 sm:p-8 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <span className="text-[11px] uppercase tracking-widest text-amber-900 font-semibold">
+                  Catalog & Raw Fabric Inventory
+                </span>
+                <h2 className="text-2xl font-serif text-stone-900 mt-1">
+                  Product Management (Prices, Images & Details)
+                </h2>
+                <p className="text-xs text-stone-500 mt-1">
+                  Edit prices in PKR/USD, update descriptions, swap photos, and manage fabric cuts.
+                </p>
+              </div>
+
+              <button
+                onClick={() => {
+                  setEditingProduct({ ...blankProduct, id: `zv-${Date.now()}` });
+                  setIsCreatingProduct(true);
+                }}
+                className="bg-amber-800 hover:bg-amber-700 text-white text-xs uppercase tracking-wider px-4 py-2.5 font-medium flex items-center gap-2 rounded-xs shadow-sm cursor-pointer self-start sm:self-auto"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add New Unstitched Suit</span>
+              </button>
+            </div>
+
+            {/* Filter and Search Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-stone-100 text-xs">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setProductSeasonFilter('all')}
+                  className={`px-3 py-1.5 rounded-xs cursor-pointer ${
+                    productSeasonFilter === 'all'
+                      ? 'bg-stone-900 text-white font-medium'
+                      : 'bg-stone-100 text-stone-700'
+                  }`}
+                >
+                  All ({draftProducts.length})
+                </button>
+                <button
+                  onClick={() => setProductSeasonFilter('summer')}
+                  className={`px-3 py-1.5 rounded-xs cursor-pointer ${
+                    productSeasonFilter === 'summer'
+                      ? 'bg-amber-800 text-white font-medium'
+                      : 'bg-stone-100 text-stone-700'
+                  }`}
+                >
+                  Summer ({draftProducts.filter((p) => p.season === 'summer').length})
+                </button>
+                <button
+                  onClick={() => setProductSeasonFilter('winter')}
+                  className={`px-3 py-1.5 rounded-xs cursor-pointer ${
+                    productSeasonFilter === 'winter'
+                      ? 'bg-amber-950 text-white font-medium'
+                      : 'bg-stone-100 text-stone-700'
+                  }`}
+                >
+                  Winter ({draftProducts.filter((p) => p.season === 'winter').length})
+                </button>
+              </div>
+
+              <div className="relative w-full sm:w-64">
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-stone-400" />
+                <input
+                  type="text"
+                  placeholder="Search products by title or SKU..."
+                  value={productSearch}
+                  onChange={(e) => setProductSearch(e.target.value)}
+                  className="w-full bg-white border border-stone-300 pl-8 pr-3 py-1.5 text-xs text-stone-800 focus:outline-stone-800"
+                />
+              </div>
+            </div>
+
+            {/* Products Table */}
+            <div className="overflow-x-auto border border-stone-200">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-stone-100 text-stone-700 uppercase tracking-wider text-[10px] font-semibold border-b border-stone-200">
+                  <tr>
+                    <th className="p-3">Product / Image</th>
+                    <th className="p-3">Category & Season</th>
+                    <th className="p-3">Price (PKR)</th>
+                    <th className="p-3">Price (USD)</th>
+                    <th className="p-3">Status</th>
+                    <th className="p-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-200">
+                  {draftProducts
+                    .filter((p) => {
+                      if (productSeasonFilter !== 'all' && p.season !== productSeasonFilter) {
+                        return false;
+                      }
+                      if (productSearch.trim()) {
+                        const q = productSearch.toLowerCase();
+                        return (
+                          p.name.toLowerCase().includes(q) ||
+                          p.sku.toLowerCase().includes(q) ||
+                          p.category.toLowerCase().includes(q)
+                        );
+                      }
+                      return true;
+                    })
+                    .map((prod) => (
+                      <tr key={prod.id} className="hover:bg-stone-50/80 transition-colors">
+                        <td className="p-3">
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={prod.primaryImage}
+                              alt={prod.name}
+                              className="w-12 h-14 object-cover rounded-2xs border border-stone-200 shrink-0"
+                            />
+                            <div>
+                              <p className="font-semibold text-stone-900 leading-tight">
+                                {prod.name}
+                              </p>
+                              <p className="text-[10px] text-stone-400 font-mono mt-0.5">
+                                SKU: {prod.sku} · {prod.pieces}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <span className="font-medium text-stone-800">{prod.category}</span>
+                          <span
+                            className={`block text-[10px] uppercase font-semibold mt-0.5 ${
+                              prod.season === 'summer' ? 'text-amber-700' : 'text-stone-600'
+                            }`}
+                          >
+                            {prod.season}
+                          </span>
+                        </td>
+                        <td className="p-3 font-mono font-semibold text-stone-900">
+                          PKR {prod.pricePKR.toLocaleString()}
+                        </td>
+                        <td className="p-3 font-mono text-stone-600">${prod.priceUSD}</td>
+                        <td className="p-3">
+                          <div className="flex flex-col gap-1 text-[10px]">
+                            {prod.inStock ? (
+                              <span className="text-emerald-700 font-medium">● In Stock</span>
+                            ) : (
+                              <span className="text-rose-600 font-medium">○ Sold Out</span>
+                            )}
+                            {prod.isBestseller && (
+                              <span className="bg-amber-100 text-amber-900 px-1 py-0.2 rounded-2xs w-fit">
+                                Bestseller
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-3 text-right space-x-1 whitespace-nowrap">
+                          <button
+                            onClick={() => {
+                              setEditingProduct({ ...prod });
+                              setIsCreatingProduct(false);
+                            }}
+                            className="p-1.5 text-stone-600 hover:text-amber-900 hover:bg-stone-200/60 rounded-xs cursor-pointer"
+                            title="Edit Product Details"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (
+                                window.confirm(`Delete product "${prod.name}" from catalog?`)
+                              ) {
+                                const remaining = draftProducts.filter((p) => p.id !== prod.id);
+                                handleSaveProducts(remaining);
+                              }
+                            }}
+                            className="p-1.5 text-stone-400 hover:text-red-700 hover:bg-red-50 rounded-xs cursor-pointer"
+                            title="Delete Product"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Product Edit / Create Modal */}
+            {editingProduct && (
+              <div className="fixed inset-0 z-50 bg-stone-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+                <div className="bg-white border border-stone-300 max-w-3xl w-full max-h-[90vh] overflow-y-auto rounded-xs shadow-2xl p-6 space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-stone-200">
+                    <div>
+                      <span className="text-[10px] uppercase tracking-widest text-amber-900 font-semibold">
+                        {isCreatingProduct ? 'Create New Item' : 'Edit Catalog Item'}
+                      </span>
+                      <h3 className="text-lg font-serif text-stone-900 font-medium">
+                        {editingProduct.name || 'Untitled Fabric Set'}
+                      </h3>
+                    </div>
+                    <button
+                      onClick={() => setEditingProduct(null)}
+                      className="text-stone-400 hover:text-stone-800 text-sm font-bold cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                    <div>
+                      <label className="block font-semibold text-stone-700 mb-1">
+                        Product Title / Name *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={editingProduct.name}
+                        onChange={(e) =>
+                          setEditingProduct({ ...editingProduct, name: e.target.value })
+                        }
+                        className="w-full border border-stone-300 p-2"
+                        placeholder="e.g. Bahar Flora Digital Lawn 3-Piece"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-stone-700 mb-1">SKU</label>
+                      <input
+                        type="text"
+                        value={editingProduct.sku}
+                        onChange={(e) =>
+                          setEditingProduct({ ...editingProduct, sku: e.target.value })
+                        }
+                        className="w-full border border-stone-300 p-2 font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-stone-700 mb-1">Season</label>
+                      <select
+                        value={editingProduct.season}
+                        onChange={(e) =>
+                          setEditingProduct({
+                            ...editingProduct,
+                            season: e.target.value as Season,
+                          })
+                        }
+                        className="w-full border border-stone-300 p-2"
+                      >
+                        <option value="summer">Summer (Lawn & Cotton)</option>
+                        <option value="winter">Winter (Khaddar & Dhanak)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-stone-700 mb-1">Category</label>
+                      <select
+                        value={editingProduct.category}
+                        onChange={(e) =>
+                          setEditingProduct({
+                            ...editingProduct,
+                            category: e.target.value as LadiesUnstitchedCategory,
+                          })
+                        }
+                        className="w-full border border-stone-300 p-2"
+                      >
+                        {editingProduct.season === 'summer'
+                          ? draftConfig.categories.summerCategories.map((c) => (
+                              <option key={c} value={c}>
+                                {c}
+                              </option>
+                            ))
+                          : draftConfig.categories.winterCategories.map((c) => (
+                              <option key={c} value={c}>
+                                {c}
+                              </option>
+                            ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-stone-700 mb-1">
+                        Price in PKR *
+                      </label>
+                      <input
+                        type="number"
+                        value={editingProduct.pricePKR}
+                        onChange={(e) =>
+                          setEditingProduct({
+                            ...editingProduct,
+                            pricePKR: Number(e.target.value),
+                          })
+                        }
+                        className="w-full border border-stone-300 p-2 font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-stone-700 mb-1">
+                        Price in USD *
+                      </label>
+                      <input
+                        type="number"
+                        value={editingProduct.priceUSD}
+                        onChange={(e) =>
+                          setEditingProduct({
+                            ...editingProduct,
+                            priceUSD: Number(e.target.value),
+                          })
+                        }
+                        className="w-full border border-stone-300 p-2 font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-stone-700 mb-1">
+                        Color Name & Swatch Hex
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={editingProduct.colorName}
+                          onChange={(e) =>
+                            setEditingProduct({
+                              ...editingProduct,
+                              colorName: e.target.value,
+                            })
+                          }
+                          placeholder="e.g. Sage Green"
+                          className="w-full border border-stone-300 p-2"
+                        />
+                        <input
+                          type="color"
+                          value={editingProduct.colorHex || '#A0A0A0'}
+                          onChange={(e) =>
+                            setEditingProduct({
+                              ...editingProduct,
+                              colorHex: e.target.value,
+                            })
+                          }
+                          className="w-12 h-9 p-0.5 border border-stone-300 cursor-pointer"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-stone-700 mb-1">
+                        Pieces Configuration
+                      </label>
+                      <select
+                        value={editingProduct.pieces}
+                        onChange={(e) =>
+                          setEditingProduct({
+                            ...editingProduct,
+                            pieces: e.target.value as PieceType,
+                          })
+                        }
+                        className="w-full border border-stone-300 p-2"
+                      >
+                        <option value="3-Piece Suit">3-Piece Suit (Shirt, Dupatta, Trouser)</option>
+                        <option value="2-Piece Suit">2-Piece Suit (Shirt & Dupatta/Trouser)</option>
+                        <option value="Plain Fabric (Per Yard/Meter)">
+                          Plain Fabric (Per Yard/Meter)
+                        </option>
+                      </select>
+                    </div>
+
+                    <div className="md:col-span-2 space-y-1">
+                      <label className="block font-semibold text-stone-700">
+                        Primary Image URL
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={editingProduct.primaryImage}
+                          onChange={(e) =>
+                            setEditingProduct({
+                              ...editingProduct,
+                              primaryImage: e.target.value,
+                            })
+                          }
+                          className="w-full border border-stone-300 p-2 font-mono"
+                        />
+                      </div>
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <span className="text-[10px] text-stone-400 self-center">
+                          Preset Quick Select:
+                        </span>
+                        {PRESET_ASSET_IMAGES.map((preset) => (
+                          <button
+                            key={preset.name}
+                            type="button"
+                            onClick={() =>
+                              setEditingProduct({
+                                ...editingProduct,
+                                primaryImage: preset.url,
+                              })
+                            }
+                            className="text-[10px] bg-stone-100 hover:bg-stone-200 px-2 py-0.5 rounded-2xs border border-stone-200 cursor-pointer"
+                          >
+                            {preset.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block font-semibold text-stone-700 mb-1">
+                        Description / Fabric Story
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={editingProduct.description}
+                        onChange={(e) =>
+                          setEditingProduct({
+                            ...editingProduct,
+                            description: e.target.value,
+                          })
+                        }
+                        className="w-full border border-stone-300 p-2"
+                        placeholder="Detailed fabric story, weave texture, organza work, etc."
+                      />
+                    </div>
+
+                    {/* Fabric Breakdown details */}
+                    <div>
+                      <label className="block font-semibold text-stone-700 mb-1">
+                        Shirt Fabric Cut & Weave
+                      </label>
+                      <input
+                        type="text"
+                        value={editingProduct.fabricDetails.shirt}
+                        onChange={(e) =>
+                          setEditingProduct({
+                            ...editingProduct,
+                            fabricDetails: {
+                              ...editingProduct.fabricDetails,
+                              shirt: e.target.value,
+                            },
+                          })
+                        }
+                        className="w-full border border-stone-300 p-1.5"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-stone-700 mb-1">
+                        Dupatta Fabric
+                      </label>
+                      <input
+                        type="text"
+                        value={editingProduct.fabricDetails.dupattaOrTrouser}
+                        onChange={(e) =>
+                          setEditingProduct({
+                            ...editingProduct,
+                            fabricDetails: {
+                              ...editingProduct.fabricDetails,
+                              dupattaOrTrouser: e.target.value,
+                            },
+                          })
+                        }
+                        className="w-full border border-stone-300 p-1.5"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-6 md:col-span-2 pt-2">
+                      <label className="flex items-center gap-2 cursor-pointer font-medium">
+                        <input
+                          type="checkbox"
+                          checked={editingProduct.inStock}
+                          onChange={(e) =>
+                            setEditingProduct({
+                              ...editingProduct,
+                              inStock: e.target.checked,
+                            })
+                          }
+                          className="rounded-2xs"
+                        />
+                        <span>In Stock / Available for Sale</span>
+                      </label>
+
+                      <label className="flex items-center gap-2 cursor-pointer font-medium">
+                        <input
+                          type="checkbox"
+                          checked={editingProduct.isBestseller || false}
+                          onChange={(e) =>
+                            setEditingProduct({
+                              ...editingProduct,
+                              isBestseller: e.target.checked,
+                            })
+                          }
+                          className="rounded-2xs"
+                        />
+                        <span>Feature as Bestseller</span>
+                      </label>
+
+                      <label className="flex items-center gap-2 cursor-pointer font-medium">
+                        <input
+                          type="checkbox"
+                          checked={editingProduct.isNewArrival || false}
+                          onChange={(e) =>
+                            setEditingProduct({
+                              ...editingProduct,
+                              isNewArrival: e.target.checked,
+                            })
+                          }
+                          className="rounded-2xs"
+                        />
+                        <span>Mark as New Arrival Drop</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-4 border-t border-stone-200">
+                    <button
+                      type="button"
+                      onClick={() => setEditingProduct(null)}
+                      className="px-4 py-2 border border-stone-300 text-stone-700 hover:bg-stone-50 cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!editingProduct.name.trim()) {
+                          alert('Please provide a product title');
+                          return;
+                        }
+                        let updatedList: Product[];
+                        if (isCreatingProduct) {
+                          updatedList = [editingProduct, ...draftProducts];
+                        } else {
+                          updatedList = draftProducts.map((p) =>
+                            p.id === editingProduct.id ? editingProduct : p
+                          );
+                        }
+                        handleSaveProducts(updatedList);
+                        setEditingProduct(null);
+                      }}
+                      className="px-5 py-2 bg-stone-900 hover:bg-stone-800 text-white font-medium cursor-pointer shadow-sm"
+                    >
+                      {isCreatingProduct ? 'Add to Catalog' : 'Save Product Changes'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ================= 4. PAYMENT METHODS TAB ================= */}
+        {activeTab === 'payments' && (
+          <div className="bg-white border border-stone-200 rounded-xs shadow-xs p-6 sm:p-8 space-y-6">
+            <div>
+              <span className="text-[11px] uppercase tracking-widest text-amber-900 font-semibold">
+                Financial Channels & Gateway Accounts
+              </span>
+              <h2 className="text-2xl font-serif text-stone-900 mt-1">
+                Multi-Platform Payment Methods Configuration
+              </h2>
+              <p className="text-xs text-stone-500 mt-1">
+                Toggle active payment channels (COD, Studio Counter, Bank Wire, JazzCash, EasyPaisa, SadaPay, Cards) and update your atelier bank credentials shown at checkout.
+              </p>
+            </div>
+
+            <div className="space-y-5 pt-4 border-t border-stone-100 text-xs">
+              {/* COD */}
+              <div className="p-4 border border-stone-200 rounded-xs bg-stone-50/50">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <input
+                      type="checkbox"
+                      id="enable_cod"
+                      checked={draftConfig.paymentMethods.cod.enabled}
+                      onChange={(e) =>
+                        setDraftConfig({
+                          ...draftConfig,
+                          paymentMethods: {
+                            ...draftConfig.paymentMethods,
+                            cod: {
+                              ...draftConfig.paymentMethods.cod,
+                              enabled: e.target.checked,
+                            },
+                          },
+                        })
+                      }
+                      className="cursor-pointer"
+                    />
+                    <label htmlFor="enable_cod" className="font-semibold text-stone-900 text-sm cursor-pointer">
+                      Cash on Delivery (COD Nationwide)
+                    </label>
+                  </div>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                    draftConfig.paymentMethods.cod.enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-600'
+                  }`}>
+                    {draftConfig.paymentMethods.cod.enabled ? 'Enabled' : 'Disabled'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-stone-600 mb-1">Display Title</label>
+                    <input
+                      type="text"
+                      value={draftConfig.paymentMethods.cod.title}
+                      onChange={(e) =>
+                        setDraftConfig({
+                          ...draftConfig,
+                          paymentMethods: {
+                            ...draftConfig.paymentMethods,
+                            cod: {
+                              ...draftConfig.paymentMethods.cod,
+                              title: e.target.value,
+                            },
+                          },
+                        })
+                      }
+                      className="w-full bg-white border border-stone-300 p-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-stone-600 mb-1">Customer Instructions</label>
+                    <input
+                      type="text"
+                      value={draftConfig.paymentMethods.cod.instructions}
+                      onChange={(e) =>
+                        setDraftConfig({
+                          ...draftConfig,
+                          paymentMethods: {
+                            ...draftConfig.paymentMethods,
+                            cod: {
+                              ...draftConfig.paymentMethods.cod,
+                              instructions: e.target.value,
+                            },
+                          },
+                        })
+                      }
+                      className="w-full bg-white border border-stone-300 p-2"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Pay at Studio */}
+              <div className="p-4 border border-stone-200 rounded-xs bg-stone-50/50">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <input
+                      type="checkbox"
+                      id="enable_studio"
+                      checked={draftConfig.paymentMethods.pay_at_studio.enabled}
+                      onChange={(e) =>
+                        setDraftConfig({
+                          ...draftConfig,
+                          paymentMethods: {
+                            ...draftConfig.paymentMethods,
+                            pay_at_studio: {
+                              ...draftConfig.paymentMethods.pay_at_studio,
+                              enabled: e.target.checked,
+                            },
+                          },
+                        })
+                      }
+                      className="cursor-pointer"
+                    />
+                    <label htmlFor="enable_studio" className="font-semibold text-stone-900 text-sm cursor-pointer">
+                      Pay at Studio Counter (Self Pickup)
+                    </label>
+                  </div>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                    draftConfig.paymentMethods.pay_at_studio.enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-600'
+                  }`}>
+                    {draftConfig.paymentMethods.pay_at_studio.enabled ? 'Enabled' : 'Disabled'}
+                  </span>
+                </div>
+                <div>
+                  <label className="block text-stone-600 mb-1">Studio Pickup Address for Reception</label>
+                  <input
+                    type="text"
+                    value={draftConfig.paymentMethods.pay_at_studio.address}
+                    onChange={(e) =>
+                      setDraftConfig({
+                        ...draftConfig,
+                        paymentMethods: {
+                          ...draftConfig.paymentMethods,
+                          pay_at_studio: {
+                            ...draftConfig.paymentMethods.pay_at_studio,
+                            address: e.target.value,
+                          },
+                        },
+                      })
+                    }
+                    className="w-full bg-white border border-stone-300 p-2"
+                  />
+                </div>
+              </div>
+
+              {/* Direct Bank Wire */}
+              <div className="p-4 border border-stone-200 rounded-xs bg-stone-50/50">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <input
+                      type="checkbox"
+                      id="enable_bank"
+                      checked={draftConfig.paymentMethods.bank_transfer.enabled}
+                      onChange={(e) =>
+                        setDraftConfig({
+                          ...draftConfig,
+                          paymentMethods: {
+                            ...draftConfig.paymentMethods,
+                            bank_transfer: {
+                              ...draftConfig.paymentMethods.bank_transfer,
+                              enabled: e.target.checked,
+                            },
+                          },
+                        })
+                      }
+                      className="cursor-pointer"
+                    />
+                    <label htmlFor="enable_bank" className="font-semibold text-stone-900 text-sm cursor-pointer">
+                      Direct Bank Transfer / Wire
+                    </label>
+                  </div>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                    draftConfig.paymentMethods.bank_transfer.enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-600'
+                  }`}>
+                    {draftConfig.paymentMethods.bank_transfer.enabled ? 'Enabled' : 'Disabled'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-stone-600 mb-1">Bank Name</label>
+                    <input
+                      type="text"
+                      value={draftConfig.paymentMethods.bank_transfer.bankName}
+                      onChange={(e) =>
+                        setDraftConfig({
+                          ...draftConfig,
+                          paymentMethods: {
+                            ...draftConfig.paymentMethods,
+                            bank_transfer: {
+                              ...draftConfig.paymentMethods.bank_transfer,
+                              bankName: e.target.value,
+                            },
+                          },
+                        })
+                      }
+                      className="w-full bg-white border border-stone-300 p-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-stone-600 mb-1">Account Title</label>
+                    <input
+                      type="text"
+                      value={draftConfig.paymentMethods.bank_transfer.accountTitle}
+                      onChange={(e) =>
+                        setDraftConfig({
+                          ...draftConfig,
+                          paymentMethods: {
+                            ...draftConfig.paymentMethods,
+                            bank_transfer: {
+                              ...draftConfig.paymentMethods.bank_transfer,
+                              accountTitle: e.target.value,
+                            },
+                          },
+                        })
+                      }
+                      className="w-full bg-white border border-stone-300 p-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-stone-600 mb-1">IBAN / Account #</label>
+                    <input
+                      type="text"
+                      value={draftConfig.paymentMethods.bank_transfer.iban}
+                      onChange={(e) =>
+                        setDraftConfig({
+                          ...draftConfig,
+                          paymentMethods: {
+                            ...draftConfig.paymentMethods,
+                            bank_transfer: {
+                              ...draftConfig.paymentMethods.bank_transfer,
+                              iban: e.target.value,
+                            },
+                          },
+                        })
+                      }
+                      className="w-full bg-white border border-stone-300 p-2 font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* JazzCash & EasyPaisa */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 border border-stone-200 rounded-xs bg-stone-50/50">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="font-semibold text-stone-900 text-sm flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={draftConfig.paymentMethods.jazzcash.enabled}
+                        onChange={(e) =>
+                          setDraftConfig({
+                            ...draftConfig,
+                            paymentMethods: {
+                              ...draftConfig.paymentMethods,
+                              jazzcash: {
+                                ...draftConfig.paymentMethods.jazzcash,
+                                enabled: e.target.checked,
+                              },
+                            },
+                          })
+                        }
+                      />
+                      <span>JazzCash Mobile Account</span>
+                    </label>
+                  </div>
+                  <div className="space-y-2">
+                    <div>
+                      <label className="block text-stone-600 text-[11px] mb-0.5">Account Number</label>
+                      <input
+                        type="text"
+                        value={draftConfig.paymentMethods.jazzcash.accountNumber}
+                        onChange={(e) =>
+                          setDraftConfig({
+                            ...draftConfig,
+                            paymentMethods: {
+                              ...draftConfig.paymentMethods,
+                              jazzcash: {
+                                ...draftConfig.paymentMethods.jazzcash,
+                                accountNumber: e.target.value,
+                              },
+                            },
+                          })
+                        }
+                        className="w-full bg-white border border-stone-300 p-1.5 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-stone-600 text-[11px] mb-0.5">Account Title</label>
+                      <input
+                        type="text"
+                        value={draftConfig.paymentMethods.jazzcash.accountTitle}
+                        onChange={(e) =>
+                          setDraftConfig({
+                            ...draftConfig,
+                            paymentMethods: {
+                              ...draftConfig.paymentMethods,
+                              jazzcash: {
+                                ...draftConfig.paymentMethods.jazzcash,
+                                accountTitle: e.target.value,
+                              },
+                            },
+                          })
+                        }
+                        className="w-full bg-white border border-stone-300 p-1.5"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 border border-stone-200 rounded-xs bg-stone-50/50">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="font-semibold text-stone-900 text-sm flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={draftConfig.paymentMethods.easypaisa.enabled}
+                        onChange={(e) =>
+                          setDraftConfig({
+                            ...draftConfig,
+                            paymentMethods: {
+                              ...draftConfig.paymentMethods,
+                              easypaisa: {
+                                ...draftConfig.paymentMethods.easypaisa,
+                                enabled: e.target.checked,
+                              },
+                            },
+                          })
+                        }
+                      />
+                      <span>Easypaisa Mobile Account</span>
+                    </label>
+                  </div>
+                  <div className="space-y-2">
+                    <div>
+                      <label className="block text-stone-600 text-[11px] mb-0.5">Account Number</label>
+                      <input
+                        type="text"
+                        value={draftConfig.paymentMethods.easypaisa.accountNumber}
+                        onChange={(e) =>
+                          setDraftConfig({
+                            ...draftConfig,
+                            paymentMethods: {
+                              ...draftConfig.paymentMethods,
+                              easypaisa: {
+                                ...draftConfig.paymentMethods.easypaisa,
+                                accountNumber: e.target.value,
+                              },
+                            },
+                          })
+                        }
+                        className="w-full bg-white border border-stone-300 p-1.5 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-stone-600 text-[11px] mb-0.5">Account Title</label>
+                      <input
+                        type="text"
+                        value={draftConfig.paymentMethods.easypaisa.accountTitle}
+                        onChange={(e) =>
+                          setDraftConfig({
+                            ...draftConfig,
+                            paymentMethods: {
+                              ...draftConfig.paymentMethods,
+                              easypaisa: {
+                                ...draftConfig.paymentMethods.easypaisa,
+                                accountTitle: e.target.value,
+                              },
+                            },
+                          })
+                        }
+                        className="w-full bg-white border border-stone-300 p-1.5"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SadaPay / NayaPay Handle */}
+              <div className="p-4 border border-stone-200 rounded-xs bg-stone-50/50">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="font-semibold text-stone-900 text-sm flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={draftConfig.paymentMethods.nayapay_sadapay.enabled}
+                      onChange={(e) =>
+                        setDraftConfig({
+                          ...draftConfig,
+                          paymentMethods: {
+                            ...draftConfig.paymentMethods,
+                            nayapay_sadapay: {
+                              ...draftConfig.paymentMethods.nayapay_sadapay,
+                              enabled: e.target.checked,
+                            },
+                          },
+                        })
+                      }
+                    />
+                    <span>SadaPay & NayaPay Instant Handle</span>
+                  </label>
+                </div>
+                <div>
+                  <label className="block text-stone-600 mb-1">Handle / Wallet ID</label>
+                  <input
+                    type="text"
+                    value={draftConfig.paymentMethods.nayapay_sadapay.handle}
+                    onChange={(e) =>
+                      setDraftConfig({
+                        ...draftConfig,
+                        paymentMethods: {
+                          ...draftConfig.paymentMethods,
+                          nayapay_sadapay: {
+                            ...draftConfig.paymentMethods.nayapay_sadapay,
+                            handle: e.target.value,
+                          },
+                        },
+                      })
+                    }
+                    className="w-full bg-white border border-stone-300 p-2 font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-stone-200 flex justify-end">
+              <button
+                onClick={handleSaveConfig}
+                className="bg-stone-900 hover:bg-stone-800 text-white text-xs uppercase tracking-wider px-6 py-2.5 font-medium cursor-pointer shadow-sm flex items-center gap-2"
+              >
+                <Save className="w-3.5 h-3.5 text-amber-300" />
+                <span>Save Payment Configurations</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ================= 5. SOCIAL PLATFORMS & WHATSAPP TAB ================= */}
+        {activeTab === 'social' && (
+          <div className="bg-white border border-stone-200 rounded-xs shadow-xs p-6 sm:p-8 space-y-6">
+            <div>
+              <span className="text-[11px] uppercase tracking-widest text-amber-900 font-semibold">
+                Social Platforms & Live Communication
+              </span>
+              <h2 className="text-2xl font-serif text-stone-900 mt-1">
+                WhatsApp Concierge & Instagram Channels
+              </h2>
+              <p className="text-xs text-stone-500 mt-1">
+                Configure your official WhatsApp phone number and Instagram profile. Changes take effect on the floating concierge and header links immediately.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-stone-100 text-xs">
+              {/* WhatsApp Config */}
+              <div className="p-5 border border-emerald-200 bg-emerald-50/40 rounded-xs space-y-4">
+                <div className="flex items-center gap-2 text-emerald-900 font-semibold text-sm">
+                  <Phone className="w-4 h-4 text-emerald-600" />
+                  <span>WhatsApp Business Setup</span>
+                </div>
+
+                <div>
+                  <label className="block text-stone-700 font-medium mb-1">
+                    WhatsApp Phone Number (with Country Code) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={draftConfig.social.whatsappNumber}
+                    onChange={(e) =>
+                      setDraftConfig({
+                        ...draftConfig,
+                        social: {
+                          ...draftConfig.social,
+                          whatsappNumber: e.target.value,
+                        },
+                      })
+                    }
+                    placeholder="e.g. 923008472911"
+                    className="w-full bg-white border border-emerald-300 p-2 font-mono text-stone-900"
+                  />
+                  <p className="text-[10px] text-stone-500 mt-1">
+                    Country code + number without dashes or spaces (e.g., 923001234567).
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-stone-700 font-medium mb-1">
+                    Default Auto-Filled Inquiry Message
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={draftConfig.social.whatsappDefaultMessage}
+                    onChange={(e) =>
+                      setDraftConfig({
+                        ...draftConfig,
+                        social: {
+                          ...draftConfig.social,
+                          whatsappDefaultMessage: e.target.value,
+                        },
+                      })
+                    }
+                    className="w-full bg-white border border-emerald-300 p-2 text-stone-900"
+                  />
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const clean = draftConfig.social.whatsappNumber.replace(/[^0-9]/g, '');
+                      window.open(
+                        `https://wa.me/${clean}?text=${encodeURIComponent(
+                          draftConfig.social.whatsappDefaultMessage
+                        )}`,
+                        '_blank'
+                      );
+                    }}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xs font-medium flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Test WhatsApp Redirection</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Instagram & Other Socials */}
+              <div className="p-5 border border-pink-200 bg-pink-50/30 rounded-xs space-y-4">
+                <div className="flex items-center gap-2 text-pink-900 font-semibold text-sm">
+                  <Instagram className="w-4 h-4 text-pink-600" />
+                  <span>Instagram & Social Platforms</span>
+                </div>
+
+                <div>
+                  <label className="block text-stone-700 font-medium mb-1">
+                    Official Instagram Page URL *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={draftConfig.social.instagramUrl}
+                    onChange={(e) =>
+                      setDraftConfig({
+                        ...draftConfig,
+                        social: {
+                          ...draftConfig.social,
+                          instagramUrl: e.target.value,
+                        },
+                      })
+                    }
+                    placeholder="https://instagram.com/zavraan.official"
+                    className="w-full bg-white border border-pink-300 p-2 text-stone-900"
+                  />
+                  <p className="text-[10px] text-stone-500 mt-1">
+                    Direct link to your verified brand page.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-stone-700 font-medium mb-1">
+                    Facebook Page URL
+                  </label>
+                  <input
+                    type="text"
+                    value={draftConfig.social.facebookUrl}
+                    onChange={(e) =>
+                      setDraftConfig({
+                        ...draftConfig,
+                        social: {
+                          ...draftConfig.social,
+                          facebookUrl: e.target.value,
+                        },
+                      })
+                    }
+                    className="w-full bg-white border border-stone-300 p-2 text-stone-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-stone-700 font-medium mb-1">
+                    TikTok Profile URL
+                  </label>
+                  <input
+                    type="text"
+                    value={draftConfig.social.tiktokUrl}
+                    onChange={(e) =>
+                      setDraftConfig({
+                        ...draftConfig,
+                        social: {
+                          ...draftConfig.social,
+                          tiktokUrl: e.target.value,
+                        },
+                      })
+                    }
+                    className="w-full bg-white border border-stone-300 p-2 text-stone-900"
+                  />
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      let target = draftConfig.social.instagramUrl.trim();
+                      if (!target.startsWith('http://') && !target.startsWith('https://')) {
+                        target = `https://${target.replace('@', 'instagram.com/')}`;
+                      }
+                      window.open(target, '_blank');
+                    }}
+                    className="px-4 py-2 bg-pink-700 hover:bg-pink-800 text-white rounded-xs font-medium flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Test Instagram Navigation</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-stone-200 flex justify-end">
+              <button
+                onClick={handleSaveConfig}
+                className="bg-stone-900 hover:bg-stone-800 text-white text-xs uppercase tracking-wider px-6 py-2.5 font-medium cursor-pointer shadow-sm flex items-center gap-2"
+              >
+                <Save className="w-3.5 h-3.5 text-amber-300" />
+                <span>Save Social Platforms</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ================= 6. BOTTOM FOOTER & STUDIO TAB ================= */}
+        {activeTab === 'footer' && (
+          <div className="bg-white border border-stone-200 rounded-xs shadow-xs p-6 sm:p-8 space-y-6">
+            <div>
+              <span className="text-[11px] uppercase tracking-widest text-amber-900 font-semibold">
+                Storefront Footer & Legal Elements
+              </span>
+              <h2 className="text-2xl font-serif text-stone-900 mt-1">
+                Bottom Footer & Atelier Contact Details
+              </h2>
+              <p className="text-xs text-stone-500 mt-1">
+                Manage the brand bio, studio physical address, contact emails, showroom hours, and copyright line displayed in the footer.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-stone-100 text-xs">
+              <div className="space-y-4">
+                <div>
+                  <label className="block font-semibold text-stone-700 mb-1">
+                    Brand Bio / Footer Statement
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={draftConfig.footer.brandBio}
+                    onChange={(e) =>
+                      setDraftConfig({
+                        ...draftConfig,
+                        footer: {
+                          ...draftConfig.footer,
+                          brandBio: e.target.value,
+                        },
+                      })
+                    }
+                    className="w-full border border-stone-300 p-2 text-xs text-stone-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-stone-700 mb-1">
+                    Studio / Showroom Physical Address
+                  </label>
+                  <input
+                    type="text"
+                    value={draftConfig.footer.studioAddress}
+                    onChange={(e) =>
+                      setDraftConfig({
+                        ...draftConfig,
+                        footer: {
+                          ...draftConfig.footer,
+                          studioAddress: e.target.value,
+                        },
+                      })
+                    }
+                    className="w-full border border-stone-300 p-2 text-xs text-stone-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-stone-700 mb-1">
+                    Customer Care Phone Line
+                  </label>
+                  <input
+                    type="text"
+                    value={draftConfig.footer.phone}
+                    onChange={(e) =>
+                      setDraftConfig({
+                        ...draftConfig,
+                        footer: {
+                          ...draftConfig.footer,
+                          phone: e.target.value,
+                        },
+                      })
+                    }
+                    className="w-full border border-stone-300 p-2 text-xs text-stone-900"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block font-semibold text-stone-700 mb-1">
+                    Support Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={draftConfig.footer.email}
+                    onChange={(e) =>
+                      setDraftConfig({
+                        ...draftConfig,
+                        footer: {
+                          ...draftConfig.footer,
+                          email: e.target.value,
+                        },
+                      })
+                    }
+                    className="w-full border border-stone-300 p-2 text-xs text-stone-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-stone-700 mb-1">
+                    Boutique Timings / Operating Hours
+                  </label>
+                  <input
+                    type="text"
+                    value={draftConfig.footer.timings}
+                    onChange={(e) =>
+                      setDraftConfig({
+                        ...draftConfig,
+                        footer: {
+                          ...draftConfig.footer,
+                          timings: e.target.value,
+                        },
+                      })
+                    }
+                    className="w-full border border-stone-300 p-2 text-xs text-stone-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-stone-700 mb-1">
+                    Copyright Line
+                  </label>
+                  <input
+                    type="text"
+                    value={draftConfig.footer.copyrightText}
+                    onChange={(e) =>
+                      setDraftConfig({
+                        ...draftConfig,
+                        footer: {
+                          ...draftConfig.footer,
+                          copyrightText: e.target.value,
+                        },
+                      })
+                    }
+                    className="w-full border border-stone-300 p-2 text-xs text-stone-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-stone-700 mb-1">
+                    Bottom Trust Notice Strip
+                  </label>
+                  <input
+                    type="text"
+                    value={draftConfig.footer.noticeBanner}
+                    onChange={(e) =>
+                      setDraftConfig({
+                        ...draftConfig,
+                        footer: {
+                          ...draftConfig.footer,
+                          noticeBanner: e.target.value,
+                        },
+                      })
+                    }
+                    className="w-full border border-stone-300 p-2 text-xs text-stone-900"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-stone-200 flex justify-end">
+              <button
+                onClick={handleSaveConfig}
+                className="bg-stone-900 hover:bg-stone-800 text-white text-xs uppercase tracking-wider px-6 py-2.5 font-medium cursor-pointer shadow-sm flex items-center gap-2"
+              >
+                <Save className="w-3.5 h-3.5 text-amber-300" />
+                <span>Save Footer Elements</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ================= 7. APPOINTMENTS & REVIEWS TAB ================= */}
+        {activeTab === 'appointments_reviews' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Appointments */}
+            <div className="bg-white border border-stone-200 rounded-xs shadow-xs p-6 space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-stone-200">
+                <div>
+                  <span className="text-[10px] uppercase tracking-widest text-amber-900 font-semibold">
+                    Studio Fabric Previews
+                  </span>
+                  <h3 className="text-lg font-serif text-stone-900 font-medium">
+                    Scheduled Appointments ({appointments.length})
+                  </h3>
+                </div>
+              </div>
+
+              {appointments.length === 0 ? (
+                <p className="text-xs text-stone-400 py-6 text-center italic">
+                  No fabric preview appointments scheduled yet.
+                </p>
+              ) : (
+                <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                  {appointments.map((appt) => (
+                    <div
+                      key={appt.id}
+                      className="p-3.5 border border-stone-200 bg-stone-50/60 rounded-xl space-y-2 text-xs"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-stone-900">
+                          {appt.customerName} ({appt.city})
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                              appt.appointmentType === 'in_person_atelier'
+                                ? 'bg-amber-100 text-amber-900 border border-amber-200'
+                                : 'bg-emerald-100 text-emerald-900 border border-emerald-200'
+                            }`}
+                          >
+                            {appt.appointmentType === 'in_person_atelier'
+                              ? 'In-Person Studio'
+                              : 'Virtual Video Call (Free)'}
+                          </span>
+                          {appt.appointmentType === 'in_person_atelier' && (
+                            <span className="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-full font-mono">
+                              PAID Rs. {appt.feePKR || 1500}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-stone-600 text-[11px]">
+                        <span>
+                          Date: <strong>{appt.date}</strong> at <strong>{appt.timeSlot}</strong>
+                        </span>
+                        <span className="font-mono text-stone-400 text-[10px]">{appt.id}</span>
+                      </div>
+
+                      <p className="text-stone-500 font-mono text-[11px]">
+                        Phone: {appt.phone} {appt.email && appt.email !== 'Not specified' ? `· Email: ${appt.email}` : ''}
+                      </p>
+
+                      {/* In-House Verified Payment Details */}
+                      {appt.appointmentType === 'in_person_atelier' && (
+                        <div className="p-2 bg-white border border-stone-200 rounded-lg text-[11px] font-mono space-y-1">
+                          <div className="flex justify-between text-stone-700">
+                            <span className="text-stone-500">Payment Channel:</span>
+                            <span className="font-bold uppercase text-stone-900">
+                              {appt.paymentMethod?.replace('_', ' ') || 'Bank Transfer'}
+                            </span>
+                          </div>
+                          {appt.transactionId && (
+                            <div className="flex justify-between text-stone-700">
+                              <span className="text-stone-500">Transaction ID:</span>
+                              <span className="font-bold text-emerald-700">{appt.transactionId}</span>
+                            </div>
+                          )}
+                          {appt.senderAccount && (
+                            <div className="flex justify-between text-stone-700">
+                              <span className="text-stone-500">Sender Account:</span>
+                              <span className="text-stone-800">{appt.senderAccount}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {appt.productNames && appt.productNames.length > 0 && (
+                        <p className="text-stone-600 text-[11px]">
+                          Requested: {appt.productNames.join(', ')}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Customer Reviews Moderation */}
+            <div className="bg-white border border-stone-200 rounded-xs shadow-xs p-6 space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-stone-200">
+                <div>
+                  <span className="text-[10px] uppercase tracking-widest text-amber-900 font-semibold">
+                    Customer Feedback System
+                  </span>
+                  <h3 className="text-lg font-serif text-stone-900 font-medium">
+                    Verified Product Reviews ({reviews.length})
+                  </h3>
+                </div>
+              </div>
+
+              <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                {reviews.map((rev) => (
+                  <div
+                    key={rev.id}
+                    className="p-3.5 border border-stone-200 bg-stone-50/60 rounded-xs space-y-1 text-xs"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-stone-900">
+                        {rev.author} ({rev.city}) · {'★'.repeat(rev.rating)}
+                      </span>
+                      <button
+                        onClick={() => {
+                          if (window.confirm('Delete this customer review?')) {
+                            onDeleteReview(rev.id);
+                            showToast('Review removed from storefront.');
+                          }
+                        }}
+                        className="text-stone-400 hover:text-red-600 p-1 cursor-pointer"
+                        title="Delete review"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <p className="font-medium text-stone-800">{rev.title}</p>
+                    <p className="text-stone-500 font-light text-[11px] leading-relaxed">
+                      "{rev.comment}"
+                    </p>
+                    <span className="text-[10px] text-stone-400 block pt-1">
+                      Date: {rev.date} · SKU: {rev.productId}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ================= 8. SECURITY & RESET TAB ================= */}
+        {activeTab === 'security' && (
+          <div className="bg-white border border-stone-200 rounded-xs shadow-xs p-6 sm:p-8 space-y-8 max-w-2xl">
+            <div>
+              <span className="text-[11px] uppercase tracking-widest text-amber-900 font-semibold">
+                Portal Credentials & System Maintenance
+              </span>
+              <h2 className="text-2xl font-serif text-stone-900 mt-1">
+                Admin Security & Configuration Restoral
+              </h2>
+              <p className="text-xs text-stone-500 mt-1">
+                Change the secret master passcode that guards access to this console, or restore factory defaults.
+              </p>
+            </div>
+
+            <div className="space-y-4 pt-4 border-t border-stone-100 text-xs">
+              <div>
+                <label className="block font-semibold text-stone-700 mb-1">
+                  Change Master Admin Passcode
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={draftConfig.adminPasscode}
+                    onChange={(e) =>
+                      setDraftConfig({
+                        ...draftConfig,
+                        adminPasscode: e.target.value,
+                      })
+                    }
+                    className="w-full border border-stone-300 p-2 font-mono"
+                  />
+                  <button
+                    onClick={handleSaveConfig}
+                    className="bg-stone-900 hover:bg-stone-800 text-white px-4 py-2 font-medium cursor-pointer shrink-0"
+                  >
+                    Update Passcode
+                  </button>
+                </div>
+                <p className="text-[11px] text-stone-400 mt-1">
+                  Keep this passcode confidential. Only authorized atelier staff should have it.
+                </p>
+              </div>
+
+              <div className="p-4 bg-red-50 border border-red-200 rounded-xs space-y-2 mt-6">
+                <h4 className="font-semibold text-red-900 text-xs uppercase tracking-wider">
+                  Danger Zone: Factory Reset
+                </h4>
+                <p className="text-stone-600 text-xs">
+                  Revert all home headlines, category titles, payment account details, social links, and footer texts back to original factory defaults.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleResetDefaults}
+                  className="bg-red-700 hover:bg-red-800 text-white text-xs px-4 py-2 rounded-xs font-medium cursor-pointer shadow-xs transition-colors flex items-center gap-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset All Site Config to Factory Defaults</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+};
