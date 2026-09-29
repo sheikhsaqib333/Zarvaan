@@ -43,22 +43,28 @@ export default function App() {
   const [appointments, setAppointments] = useState<PreviewAppointment[]>([]);
   const [cartItems, setCartItems] = usePersistentState<CartItem[]>('zavraan_cart', []);
   const [wishlistIds, setWishlistIds] = usePersistentState<string[]>('zavraan_wishlist', []);
+  const [visitorId] = usePersistentState<string>(
+    'zavraan_visitor_id',
+    globalThis.crypto?.randomUUID?.() ?? `visitor-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  );
+  const [likedProductIds, setLikedProductIds] = usePersistentState<string[]>('zavraan_liked_products', []);
+  const [productLikeCounts, setProductLikeCounts] = useState<Record<string, number>>({});
   const [isDataLoading, setIsDataLoading] = useState(true);
 
   useEffect(() => {
     const loadStoreData = async () => {
       try {
-        const [serverConfig, serverProducts, serverReviews, serverAppointments] = await Promise.all([
+        const [serverConfig, serverProducts, serverReviews, serverLikes] = await Promise.all([
           storeApi.getSiteConfig(),
           storeApi.getProducts(),
           storeApi.getReviews(),
-          storeApi.getAppointments(),
+          storeApi.getLikes().catch(() => ({})),
         ]);
 
         setSiteConfig(mergeSiteConfig(serverConfig));
         setProducts(serverProducts);
         setReviews(serverReviews);
-        setAppointments(serverAppointments);
+        setProductLikeCounts(serverLikes);
       } catch (error) {
         console.error('Failed to load store data from backend:', error);
       } finally {
@@ -148,6 +154,21 @@ export default function App() {
         return [...prev, productId];
       }
     });
+  };
+
+  const handleToggleProductLike = async (productId: string) => {
+    try {
+      const result = await storeApi.toggleLike(productId, visitorId);
+      setProductLikeCounts((current) => ({ ...current, [productId]: result.count }));
+      setLikedProductIds((current) =>
+        result.liked
+          ? current.includes(productId) ? current : [...current, productId]
+          : current.filter((id) => id !== productId)
+      );
+    } catch (error) {
+      console.error('Unable to update product like:', error);
+      showToast('Like could not be saved. Please try again.');
+    }
   };
 
   const handleAddReview = (newRevData: Omit<ProductReview, 'id' | 'date'>) => {
@@ -337,6 +358,25 @@ export default function App() {
 
   const getCategoryCount = (category: string) => categoryCounts.get(category) ?? 0;
 
+  const renderProductCard = (product: Product) => (
+    <ProductCard
+      key={product.id}
+      product={product}
+      currency={currency}
+      isWishlisted={wishlistIds.includes(product.id)}
+      likeCount={productLikeCounts[product.id] ?? 0}
+      isLiked={likedProductIds.includes(product.id)}
+      onToggleWishlist={handleToggleWishlist}
+      onToggleLike={handleToggleProductLike}
+      onQuickView={setActiveProductForDetail}
+      onAddToCart={(prod) => handleAddToCart(prod, 'unstitched')}
+      onSchedulePreview={(prod) => {
+        setProductForAppointment(prod);
+        setIsAppointmentModalOpen(true);
+      }}
+    />
+  );
+
   if (isDataLoading) {
     return (
       <div className="min-h-screen bg-[#FAF9F5] flex items-center justify-center text-stone-700">
@@ -363,6 +403,7 @@ export default function App() {
           reviews={reviews}
           onUpdateReviews={persistReviews}
           onUpdateAppointments={persistAppointments}
+          onLoadAppointments={setAppointments}
           onDeleteReview={(revId) => {
             const nextReviews = reviews.filter((r) => r.id !== revId);
             persistReviews(nextReviews);
@@ -435,6 +476,37 @@ export default function App() {
         homeConfig={siteConfig.homeScreen}
         products={products}
       />
+
+      {siteConfig.homepageCollections.filter((collection) => collection.visible).map((collection) => {
+        const collectionProducts = collection.productIds
+          .map((id) => productsWithLiveRatings.find((product) => product.id === id))
+          .filter((product): product is Product => Boolean(product));
+        if (!collectionProducts.length) return null;
+
+        return (
+          <section key={collection.id} className="w-full border-b border-stone-200 bg-white py-10 sm:py-14">
+            <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-6">
+                <div>
+                  <span className="text-[10px] uppercase tracking-[0.2em] font-semibold text-amber-900">Curated collection</span>
+                  <h2 className="mt-1 text-2xl sm:text-3xl font-serif text-stone-950">{displayBrand(collection.title)}</h2>
+                  {collection.subtitle && <p className="mt-1 text-xs sm:text-sm text-stone-600">{displayBrand(collection.subtitle)}</p>}
+                </div>
+                <button
+                  type="button"
+                  onClick={scrollToCatalog}
+                  className="text-xs font-semibold text-stone-700 hover:text-amber-900 underline underline-offset-4 self-start sm:self-auto"
+                >
+                  Explore all designs
+                </button>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6">
+                {collectionProducts.map(renderProductCard)}
+              </div>
+            </div>
+          </section>
+        );
+      })}
 
       {/* Product Catalog Section */}
       <section ref={catalogRef} className="py-12 sm:py-16 max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 w-full flex-1">
@@ -724,21 +796,7 @@ export default function App() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 sm:gap-8">
-            {filteredProducts.map((product) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                currency={currency}
-                isWishlisted={wishlistIds.includes(product.id)}
-                onToggleWishlist={handleToggleWishlist}
-                onQuickView={setActiveProductForDetail}
-                onAddToCart={(prod) => handleAddToCart(prod, 'unstitched')}
-                onSchedulePreview={(prod) => {
-                  setProductForAppointment(prod);
-                  setIsAppointmentModalOpen(true);
-                }}
-              />
-            ))}
+            {filteredProducts.map(renderProductCard)}
           </div>
         )}
       </section>
@@ -780,7 +838,10 @@ export default function App() {
         isOpen={!!activeProductForDetail}
         onClose={() => setActiveProductForDetail(null)}
         isWishlisted={activeProductForDetail ? wishlistIds.includes(activeProductForDetail.id) : false}
+        likeCount={activeProductForDetail ? productLikeCounts[activeProductForDetail.id] ?? 0 : 0}
+        isLiked={activeProductForDetail ? likedProductIds.includes(activeProductForDetail.id) : false}
         onToggleWishlist={handleToggleWishlist}
+        onToggleLike={handleToggleProductLike}
         onAddToCart={handleAddToCart}
         onOpenCalculator={() => {
           setActiveProductForDetail(null);

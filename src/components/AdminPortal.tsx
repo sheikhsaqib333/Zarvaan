@@ -6,6 +6,7 @@ import {
   PieceType,
   ProductReview,
   PreviewAppointment,
+  ProductTag,
 } from '../types/clothing';
 import { storeApi } from '../lib/storeApi';
 import {
@@ -15,8 +16,10 @@ import {
   DEFAULT_SITE_CONFIG,
   mergeSiteConfig,
   HeroSlideConfig,
+  HomepageCollectionConfig,
 } from '../types/siteConfig';
 import { buildDefaultHeroSlides } from '../utils/heroSlides';
+import { PRODUCT_TAG_LABELS } from '../utils/productTags';
 import { replaceBrandName, useBrandName } from '../context/BrandNameContext';
 import {
   HERO_IMAGE,
@@ -60,6 +63,8 @@ import {
   ImageUp,
   Crop,
   SlidersHorizontal,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 
 export interface AdminPortalProps {
@@ -71,6 +76,7 @@ export interface AdminPortalProps {
   reviews: ProductReview[];
   onUpdateReviews?: (reviews: ProductReview[]) => void;
   onUpdateAppointments?: (appointments: PreviewAppointment[]) => void;
+  onLoadAppointments?: (appointments: PreviewAppointment[]) => void;
   onDeleteReview: (reviewId: string) => void;
   onExitAdmin: () => void;
 }
@@ -92,6 +98,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   reviews,
   onUpdateReviews,
   onUpdateAppointments,
+  onLoadAppointments,
   onDeleteReview,
   onExitAdmin,
 }) => {
@@ -158,6 +165,18 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         heroSlides,
       },
     }));
+  };
+
+  const updateHomepageCollections = (homepageCollections: HomepageCollectionConfig[]) => {
+    setDraftConfig((current) => ({ ...current, homepageCollections }));
+  };
+
+  const moveHeroSlide = (index: number, direction: -1 | 1) => {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= draftHeroSlides.length) return;
+    const reordered = [...draftHeroSlides];
+    [reordered[index], reordered[targetIndex]] = [reordered[targetIndex], reordered[index]];
+    updateDraftHeroSlides(reordered);
   };
 
   const updateNavigationLink = <K extends keyof NavigationConfig>(
@@ -536,6 +555,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setDropTargetProductId(null);
   };
 
+  const moveProduct = (productId: string, direction: -1 | 1) => {
+    const sourceIndex = draftProducts.findIndex((product) => product.id === productId);
+    const targetIndex = sourceIndex + direction;
+    if (sourceIndex < 0 || targetIndex < 0 || targetIndex >= draftProducts.length) return;
+    const reordered = [...draftProducts];
+    [reordered[sourceIndex], reordered[targetIndex]] = [reordered[targetIndex], reordered[sourceIndex]];
+    void handleSaveProducts(reordered);
+  };
+
   // Auth Handler
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -544,6 +572,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       sessionStorage.setItem('zavraan_admin_token', result.token);
       setIsAuthenticated(true);
       setAuthError('');
+      try {
+        const loadedAppointments = await storeApi.getAppointments();
+        onLoadAppointments?.(loadedAppointments);
+      } catch (error) {
+        console.error('Unable to load admin appointments:', error);
+        showToast('Admin unlocked, but appointment records could not be loaded.');
+      }
     } catch {
       setAuthError('Incorrect passcode or admin service unavailable.');
     }
@@ -1330,6 +1365,27 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             <span className="text-[10px] uppercase tracking-[0.2em] font-semibold text-amber-900">
                               Slide {index + 1}
                             </span>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => moveHeroSlide(index, -1)}
+                                disabled={index === 0}
+                                className="p-1 border border-stone-200 bg-white text-stone-600 disabled:opacity-30 cursor-pointer"
+                                title="Move hero slide earlier"
+                                aria-label={`Move hero slide ${index + 1} up`}
+                              >
+                                <ChevronUp className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => moveHeroSlide(index, 1)}
+                                disabled={index === draftHeroSlides.length - 1}
+                                className="p-1 border border-stone-200 bg-white text-stone-600 disabled:opacity-30 cursor-pointer"
+                                title="Move hero slide later"
+                                aria-label={`Move hero slide ${index + 1} down`}
+                              >
+                                <ChevronDown className="w-4 h-4" />
+                              </button>
                             <button
                               type="button"
                               disabled={draftHeroSlides.length <= 1}
@@ -1340,6 +1396,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
+                            </div>
                           </div>
 
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1772,6 +1829,128 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             </section>
 
             <section className="space-y-4 border-t border-stone-100 pt-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-stone-900">Homepage collections</h3>
+                  <p className="text-[11px] text-stone-500 mt-1">
+                    Create sections such as Trending or Last Pieces and choose exactly which designs appear in each.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => updateHomepageCollections([
+                    ...draftConfig.homepageCollections,
+                    {
+                      id: `home-collection-${Date.now()}`,
+                      title: 'Trending',
+                      subtitle: 'Most-loved designs, selected by our atelier.',
+                      visible: true,
+                      productIds: [],
+                    },
+                  ])}
+                  className="bg-amber-800 hover:bg-amber-700 text-white text-[10px] uppercase tracking-wider px-3 py-2 font-medium cursor-pointer flex items-center gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add homepage collection
+                </button>
+              </div>
+
+              {draftConfig.homepageCollections.map((collection, index) => {
+                const updateCollection = (updates: Partial<HomepageCollectionConfig>) =>
+                  updateHomepageCollections(draftConfig.homepageCollections.map((item) =>
+                    item.id === collection.id ? { ...item, ...updates } : item
+                  ));
+                const moveCollection = (direction: -1 | 1) => {
+                  const target = index + direction;
+                  if (target < 0 || target >= draftConfig.homepageCollections.length) return;
+                  const next = [...draftConfig.homepageCollections];
+                  [next[index], next[target]] = [next[target], next[index]];
+                  updateHomepageCollections(next);
+                };
+                const moveCollectionProduct = (productIndex: number, direction: -1 | 1) => {
+                  const target = productIndex + direction;
+                  if (target < 0 || target >= collection.productIds.length) return;
+                  const productIds = [...collection.productIds];
+                  [productIds[productIndex], productIds[target]] = [productIds[target], productIds[productIndex]];
+                  updateCollection({ productIds });
+                };
+
+                return (
+                  <article key={collection.id} className="border border-stone-200 bg-stone-50 p-4 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <label className="flex items-center gap-2 text-xs font-semibold text-stone-800">
+                        <input type="checkbox" checked={collection.visible} onChange={(event) => updateCollection({ visible: event.target.checked })} />
+                        Show collection {index + 1}
+                      </label>
+                      <div className="flex items-center gap-1">
+                        <button type="button" onClick={() => moveCollection(-1)} disabled={index === 0} className="p-1.5 border border-stone-300 bg-white disabled:opacity-30" title="Move collection up" aria-label={`Move collection ${index + 1} up`}><ChevronUp className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => moveCollection(1)} disabled={index === draftConfig.homepageCollections.length - 1} className="p-1.5 border border-stone-300 bg-white disabled:opacity-30" title="Move collection down" aria-label={`Move collection ${index + 1} down`}><ChevronDown className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => updateHomepageCollections(draftConfig.homepageCollections.filter((item) => item.id !== collection.id))} className="p-1.5 text-stone-500 hover:text-red-700" title="Remove collection" aria-label={`Remove collection ${index + 1}`}><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-semibold text-stone-600 mb-1">Collection title / category name</label>
+                        <input type="text" value={collection.title} onChange={(event) => updateCollection({ title: event.target.value })} className="w-full border border-stone-300 bg-white p-2 text-xs" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-stone-600 mb-1">Section description</label>
+                        <input type="text" value={collection.subtitle} onChange={(event) => updateCollection({ subtitle: event.target.value })} className="w-full border border-stone-300 bg-white p-2 text-xs" />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider font-semibold text-stone-600 mb-2">Choose designs</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto">
+                          {draftProducts.map((product) => {
+                            const selected = collection.productIds.includes(product.id);
+                            return (
+                              <label key={product.id} className="flex items-center gap-2 bg-white border border-stone-200 p-2 text-[11px] cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={selected}
+                                  onChange={() => updateCollection({
+                                    productIds: selected
+                                      ? collection.productIds.filter((id) => id !== product.id)
+                                      : [...collection.productIds, product.id],
+                                  })}
+                                />
+                                <img src={product.primaryImage} alt="" className="w-8 h-10 object-cover" />
+                                <span className="line-clamp-2">{product.name}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider font-semibold text-stone-600 mb-2">Homepage display order</p>
+                        {collection.productIds.length === 0 ? (
+                          <p className="text-[11px] text-stone-500">Choose products to add them to this collection.</p>
+                        ) : (
+                          <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                            {collection.productIds.map((productId, productIndex) => {
+                              const product = draftProducts.find((item) => item.id === productId);
+                              if (!product) return null;
+                              return (
+                                <div key={productId} className="flex items-center gap-2 bg-white border border-stone-200 p-2 text-[11px]">
+                                  <span className="w-5 text-stone-400 font-mono">{productIndex + 1}</span>
+                                  <span className="flex-1 truncate">{product.name}</span>
+                                  <button type="button" onClick={() => moveCollectionProduct(productIndex, -1)} disabled={productIndex === 0} className="p-1 border border-stone-200 disabled:opacity-30" aria-label={`Move ${product.name} up`}><ChevronUp className="w-3.5 h-3.5" /></button>
+                                  <button type="button" onClick={() => moveCollectionProduct(productIndex, 1)} disabled={productIndex === collection.productIds.length - 1} className="p-1 border border-stone-200 disabled:opacity-30" aria-label={`Move ${product.name} down`}><ChevronDown className="w-3.5 h-3.5" /></button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </section>
+
+            <section className="space-y-4 border-t border-stone-100 pt-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-semibold text-stone-900">Editorial story section</h3>
@@ -2105,9 +2284,39 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                 Bestseller
                               </span>
                             )}
+                            {!prod.inStock && (
+                              <span className="bg-rose-700 text-white px-1 py-0.2 rounded-2xs w-fit">
+                                {PRODUCT_TAG_LABELS['sold-out']}
+                              </span>
+                            )}
+                            {prod.tags?.filter((tag) => tag !== 'sold-out').map((tag) => (
+                              <span key={tag} className="bg-stone-200 text-stone-800 px-1 py-0.2 rounded-2xs w-fit">
+                                {PRODUCT_TAG_LABELS[tag]}
+                              </span>
+                            ))}
                           </div>
                         </td>
                         <td className="p-3 text-right space-x-1 whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => moveProduct(prod.id, -1)}
+                            disabled={draftProducts[0]?.id === prod.id}
+                            className="p-1.5 text-stone-500 hover:text-stone-900 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                            title="Move product up in storefront order"
+                            aria-label={`Move ${prod.name} up`}
+                          >
+                            <ChevronUp className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveProduct(prod.id, 1)}
+                            disabled={draftProducts[draftProducts.length - 1]?.id === prod.id}
+                            className="p-1.5 text-stone-500 hover:text-stone-900 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                            title="Move product down in storefront order"
+                            aria-label={`Move ${prod.name} down`}
+                          >
+                            <ChevronDown className="w-4 h-4" />
+                          </button>
                           <button
                             onClick={() => {
                               setEditingProduct({ ...prod });
@@ -2431,6 +2640,31 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         className="w-full border border-stone-300 p-1.5"
                       />
                     </div>
+
+                    <fieldset className="md:col-span-2 border border-stone-200 bg-stone-50 p-3 space-y-2">
+                      <legend className="px-1 text-xs font-semibold text-stone-800">Storefront badges</legend>
+                      <p className="text-[10px] text-stone-500">
+                        Sold Out appears automatically when the product is marked out of stock.
+                      </p>
+                      <div className="flex flex-wrap gap-x-5 gap-y-2">
+                        {(['limited-stock', 'last-piece', 'new-design', 'trending'] as ProductTag[]).map((tag) => (
+                          <label key={tag} className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={editingProduct.tags?.includes(tag) ?? false}
+                              onChange={(event) => {
+                                const currentTags = editingProduct.tags ?? [];
+                                const tags = event.target.checked
+                                  ? [...currentTags, tag]
+                                  : currentTags.filter((item) => item !== tag);
+                                setEditingProduct({ ...editingProduct, tags });
+                              }}
+                            />
+                            {PRODUCT_TAG_LABELS[tag]}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
 
                     <div className="flex items-center gap-6 md:col-span-2 pt-2">
                       <label className="flex items-center gap-2 cursor-pointer font-medium">

@@ -10,6 +10,14 @@ export interface HeroSlideConfig {
   dropTag?: string;
 }
 
+export interface HomepageCollectionConfig {
+  id: string;
+  title: string;
+  subtitle: string;
+  visible: boolean;
+  productIds: string[];
+}
+
 export interface HomeScreenConfig {
   announcementBadge: string;
   headlinePart1: string;
@@ -156,6 +164,7 @@ export interface FooterConfig {
 export interface SiteConfig {
   brandName: string;
   homeScreen: HomeScreenConfig;
+  homepageCollections: HomepageCollectionConfig[];
   categories: CategoriesConfig;
   navigation: NavigationConfig;
   craftsmanship: CraftsmanshipConfig;
@@ -166,6 +175,7 @@ export interface SiteConfig {
 
 export const DEFAULT_SITE_CONFIG: SiteConfig = {
   brandName: 'Zavraan',
+  homepageCollections: [],
   homeScreen: {
     announcementBadge: 'Haute Ladies Unstitched Atelier · Pure Raw Yardage',
     headlinePart1: 'The Art of Pure',

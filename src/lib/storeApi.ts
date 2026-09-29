@@ -8,6 +8,11 @@ export interface StoreExportPayload {
   appointments: PreviewAppointment[];
 }
 
+export interface ProductLikeSummary {
+  count: number;
+  liked: boolean;
+}
+
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
 
 function apiUrl(path: string): string {
@@ -50,6 +55,12 @@ export const storeApi = {
     requestJson<Product[]>('/api/products', {
       method: 'PUT',
       body: JSON.stringify(products),
+    }),
+  getLikes: () => requestJson<Record<string, number>>('/api/likes'),
+  toggleLike: (productId: string, visitorId: string) =>
+    requestJson<ProductLikeSummary>(`/api/products/${encodeURIComponent(productId)}/like`, {
+      method: 'POST',
+      headers: { 'X-Visitor-Id': visitorId },
     }),
   getReviews: () => requestJson<ProductReview[]>('/api/reviews'),
   saveReviews: (reviews: ProductReview[]) =>

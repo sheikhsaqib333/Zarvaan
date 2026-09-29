@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Product, Currency, StandardSize, CustomMeasurements, StitchingOption, ProductReview } from '../types/clothing';
 import { ReviewSystem } from './ReviewSystem';
-import { X, Check, Ruler, Scissors, Shield, Heart, ShoppingCart, ZoomIn, Calendar, Star } from 'lucide-react';
+import { X, Check, Ruler, Scissors, Shield, Heart, ShoppingCart, ZoomIn, Calendar, Star, ThumbsUp } from 'lucide-react';
 import { replaceBrandName, useBrandName } from '../context/BrandNameContext';
+import { PRODUCT_TAG_LABELS, PRODUCT_TAG_STYLES } from '../utils/productTags';
 
 interface ProductDetailModalProps {
   product: Product | null;
@@ -10,7 +11,10 @@ interface ProductDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   isWishlisted: boolean;
+  likeCount: number;
+  isLiked: boolean;
   onToggleWishlist: (productId: string) => void;
+  onToggleLike: (productId: string) => void;
   onAddToCart: (
     product: Product,
     stitchingOption: StitchingOption,
@@ -29,7 +33,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   isOpen,
   onClose,
   isWishlisted,
+  likeCount,
+  isLiked,
   onToggleWishlist,
+  onToggleLike,
   onAddToCart,
   onOpenCalculator,
   onSchedulePreview,
@@ -181,6 +188,17 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   </div>
 
                   <button
+                    type="button"
+                    onClick={() => onToggleLike(product.id)}
+                    className={`inline-flex items-center gap-1 text-xs font-semibold cursor-pointer ${isLiked ? 'text-emerald-800' : 'text-stone-600 hover:text-emerald-800'}`}
+                    aria-pressed={isLiked}
+                    aria-label={isLiked ? `Unlike design; ${likeCount} likes` : `Like design; ${likeCount} likes`}
+                  >
+                    <ThumbsUp className={`w-3.5 h-3.5 ${isLiked ? 'fill-current' : ''}`} />
+                    <span>{likeCount}</span>
+                  </button>
+
+                  <button
                     onClick={() => onToggleWishlist(product.id)}
                     className="flex items-center gap-1 text-stone-700 hover:text-amber-900 cursor-pointer ml-2"
                   >
@@ -193,6 +211,21 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               <h2 className="text-2xl sm:text-3xl font-serif text-stone-900 font-normal leading-tight">
                 {displayBrand(product.name)}
               </h2>
+
+              {(product.tags?.length || !product.inStock) && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {!product.inStock && !product.tags?.includes('sold-out') && (
+                    <span className={`text-[9px] uppercase tracking-wider px-2 py-1 font-bold ${PRODUCT_TAG_STYLES['sold-out']}`}>
+                      {PRODUCT_TAG_LABELS['sold-out']}
+                    </span>
+                  )}
+                  {product.tags?.map((tag) => (
+                    <span key={tag} className={`text-[9px] uppercase tracking-wider px-2 py-1 font-bold ${PRODUCT_TAG_STYLES[tag]}`}>
+                      {PRODUCT_TAG_LABELS[tag]}
+                    </span>
+                  ))}
+                </div>
+              )}
 
               {/* Price */}
               <div className="mt-2 flex items-baseline gap-3">
@@ -355,7 +388,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                         : 'text-stone-500 hover:text-stone-800'
                     }`}
                   >
-                    <span>Reviews ({productReviews.length})</span>
+                    <span>Reviews for this design ({productReviews.length})</span>
                   </button>
                 </div>
 

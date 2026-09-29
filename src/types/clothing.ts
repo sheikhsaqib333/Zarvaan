@@ -20,6 +20,7 @@ export type PieceType = '3-Piece Suit' | '2-Piece Suit' | 'Plain Fabric (Per Yar
 export type StitchingOption = 'unstitched' | 'stitched';
 export type StandardSize = 'S' | 'M' | 'L' | 'XL' | 'Custom';
 export type Currency = 'PKR' | 'USD';
+export type ProductTag = 'sold-out' | 'limited-stock' | 'last-piece' | 'new-design' | 'trending';
 
 export type PaymentMethod =
   // Offline
@@ -87,6 +88,7 @@ export interface Product {
   stylingTips: string;
   isNewArrival?: boolean;
   isBestseller?: boolean;
+  tags?: ProductTag[];
   inStock: boolean;
   averageRating: number;
   totalReviews: number;

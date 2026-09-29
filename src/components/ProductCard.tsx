@@ -1,13 +1,17 @@
 import React from 'react';
 import { Product, Currency } from '../types/clothing';
-import { Heart, Eye, ShoppingCart, Star, Video } from 'lucide-react';
+import { Heart, Eye, ShoppingCart, Star, ThumbsUp, Video } from 'lucide-react';
 import { replaceBrandName, useBrandName } from '../context/BrandNameContext';
+import { PRODUCT_TAG_LABELS, PRODUCT_TAG_STYLES } from '../utils/productTags';
 
 interface ProductCardProps {
   product: Product;
   currency: Currency;
   isWishlisted: boolean;
+  likeCount: number;
+  isLiked: boolean;
   onToggleWishlist: (productId: string) => void;
+  onToggleLike: (productId: string) => void;
   onQuickView: (product: Product) => void;
   onAddToCart: (product: Product) => void;
   onSchedulePreview?: (product: Product) => void;
@@ -17,7 +21,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   product,
   currency,
   isWishlisted,
+  likeCount,
+  isLiked,
   onToggleWishlist,
+  onToggleLike,
   onQuickView,
   onAddToCart,
   onSchedulePreview,
@@ -55,6 +62,19 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               ✦ Drop '26
             </span>
           )}
+          {!product.inStock && !product.tags?.includes('sold-out') && (
+            <span className={`text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full font-bold shadow-xs ${PRODUCT_TAG_STYLES['sold-out']}`}>
+              {PRODUCT_TAG_LABELS['sold-out']}
+            </span>
+          )}
+          {product.tags?.map((tag) => (
+            <span
+              key={tag}
+              className={`text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full font-bold shadow-xs ${PRODUCT_TAG_STYLES[tag]}`}
+            >
+              {PRODUCT_TAG_LABELS[tag]}
+            </span>
+          ))}
         </div>
 
         {/* Wishlist Button with Heart Pop Animation */}
@@ -71,6 +91,23 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
         >
           <Heart className={`w-3.5 h-3.5 ${isWishlisted ? 'fill-white' : ''}`} />
+        </button>
+
+        <button
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleLike(product.id);
+          }}
+          className={`absolute top-14 right-3 z-20 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border text-[11px] font-semibold shadow-sm cursor-pointer transition-colors ${
+            isLiked
+              ? 'bg-emerald-800 text-white border-emerald-700'
+              : 'bg-white/90 text-stone-700 border-stone-200 hover:bg-white'
+          }`}
+          aria-label={isLiked ? `Unlike ${product.name}; ${likeCount} likes` : `Like ${product.name}; ${likeCount} likes`}
+          aria-pressed={isLiked}
+        >
+          <ThumbsUp className={`w-3.5 h-3.5 ${isLiked ? 'fill-current' : ''}`} />
+          <span>{likeCount}</span>
         </button>
 
         {/* Hover Action Strip with Modern Pill Buttons */}

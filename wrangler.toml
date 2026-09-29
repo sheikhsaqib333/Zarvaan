@@ -1,0 +1,6 @@
+name = "zarvaan-api-edge"
+main = "edge-cache-worker.js"
+compatibility_date = "2026-09-29"
+
+[vars]
+BACKEND_ORIGIN = "https://zarvaan-api.onrender.com"
