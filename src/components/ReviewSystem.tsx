@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ProductReview } from '../types/clothing';
 import { Star, CheckCircle, MessageSquare, ThumbsUp, Sparkles, Plus } from 'lucide-react';
+import { replaceBrandName, useBrandName } from '../context/BrandNameContext';
 
 interface ReviewSystemProps {
   productId: string;
@@ -19,6 +20,8 @@ export const ReviewSystem: React.FC<ReviewSystemProps> = ({
   totalReviews,
   onAddReview,
 }) => {
+  const brandName = useBrandName();
+  const displayBrand = (text: string) => replaceBrandName(text, brandName);
   const [showForm, setShowForm] = useState(false);
   const [rating, setRating] = useState(5);
   const [hoverRating, setHoverRating] = useState(0);
@@ -109,7 +112,7 @@ export const ReviewSystem: React.FC<ReviewSystemProps> = ({
         >
           <div className="flex items-center justify-between border-b border-stone-200 pb-2">
             <h4 className="font-serif text-base text-stone-900 font-medium">
-              Review This Unstitched Fabric: {productName}
+              Review This Unstitched Fabric: {displayBrand(productName)}
             </h4>
             <span className="text-stone-400 text-[11px]">* Required fields</span>
           </div>
@@ -273,13 +276,14 @@ export const ReviewSystem: React.FC<ReviewSystemProps> = ({
                       />
                     ))}
                   </div>
-                  <h5 className="font-semibold text-stone-900">{rev.title}</h5>
+                    <h5 className="font-semibold text-stone-900">{displayBrand(rev.title)}</h5>
                 </div>
 
                 <span className="text-[11px] text-stone-400 font-mono">{rev.date}</span>
               </div>
 
               <p className="text-stone-700 leading-relaxed font-light">{rev.comment}</p>
+                <p className="text-stone-700 leading-relaxed font-light">{displayBrand(rev.comment)}</p>
 
               {rev.fabricFeedback && (
                 <div className="pt-2 flex flex-wrap gap-2 text-[11px]">
@@ -294,7 +298,7 @@ export const ReviewSystem: React.FC<ReviewSystemProps> = ({
 
               <div className="pt-2 border-t border-stone-100 flex items-center justify-between text-[11px] text-stone-500">
                 <div className="flex items-center gap-1.5">
-                  <span className="font-medium text-stone-800">{rev.author}</span>
+                    <span className="font-medium text-stone-800">{displayBrand(rev.author)}</span>
                   <span>({rev.city})</span>
                   {rev.verifiedPurchase && (
                     <span className="inline-flex items-center gap-0.5 text-emerald-700 font-medium ml-1">

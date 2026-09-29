@@ -1,6 +1,8 @@
 import React from 'react';
 import { ShoppingCart, Heart, Calendar } from 'lucide-react';
 import { Currency, Season } from '../types/clothing';
+import { NavigationConfig } from '../types/siteConfig';
+import { replaceBrandName, useBrandName } from '../context/BrandNameContext';
 
 interface NavbarProps {
   cartCount: number;
@@ -11,6 +13,7 @@ interface NavbarProps {
   onOpenWishlist: () => void;
   onSelectSeason: (season: Season | 'all') => void;
   activeSeason: Season | 'all';
+  navigationConfig: NavigationConfig;
   onOpenAppointment: () => void;
 }
 
@@ -23,8 +26,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenWishlist,
   onSelectSeason,
   activeSeason,
+  navigationConfig,
   onOpenAppointment,
 }) => {
+  const brandName = useBrandName();
+  const hasVisibleNavigation = Object.values(navigationConfig).some((link) => link.visible);
+
   return (
     <header className="sticky top-0 z-40 bg-[#FAF9F5]/90 backdrop-blur-xl border-b border-stone-200/70 transition-all">
       {/* Chic Top Mini Announcement Bar */}
@@ -41,48 +48,56 @@ export const Navbar: React.FC<NavbarProps> = ({
           onClick={() => onSelectSeason('all')}
           className="text-2xl sm:text-3xl font-serif tracking-[0.22em] text-stone-950 font-semibold hover:opacity-80 transition-opacity cursor-pointer text-left"
         >
-          ZAVRAAN
+          {brandName.toUpperCase()}
         </button>
 
         {/* Zone 2: Navigation Links (Clean unboxed Gen-Z typography) */}
         <nav className="hidden md:flex items-center gap-8 text-xs tracking-[0.16em] uppercase font-semibold text-stone-600">
-          <button
-            onClick={() => onSelectSeason('all')}
-            className={`transition-colors hover:text-stone-950 cursor-pointer ${
-              activeSeason === 'all'
-                ? 'text-stone-950 font-bold border-b-2 border-stone-950 pb-0.5'
-                : ''
-            }`}
-          >
-            All Drops
-          </button>
-          <button
-            onClick={() => onSelectSeason('summer')}
-            className={`transition-colors hover:text-stone-950 cursor-pointer ${
-              activeSeason === 'summer'
-                ? 'text-stone-950 font-bold border-b-2 border-stone-950 pb-0.5'
-                : ''
-            }`}
-          >
-            Summer Lawn & Cotton
-          </button>
-          <button
-            onClick={() => onSelectSeason('winter')}
-            className={`transition-colors hover:text-stone-950 cursor-pointer ${
-              activeSeason === 'winter'
-                ? 'text-stone-950 font-bold border-b-2 border-stone-950 pb-0.5'
-                : ''
-            }`}
-          >
-            Winter Khaddar & Dhanak
-          </button>
-          <button
-            onClick={onOpenAppointment}
-            className="transition-colors hover:text-stone-950 cursor-pointer text-amber-900 font-bold flex items-center gap-1.5"
-          >
-            <Calendar className="w-3.5 h-3.5 text-amber-700" />
-            <span>Live Video Preview</span>
-          </button>
+          {navigationConfig.allDrops.visible && (
+            <button
+              onClick={() => onSelectSeason('all')}
+              className={`transition-colors hover:text-stone-950 cursor-pointer ${
+                activeSeason === 'all'
+                  ? 'text-stone-950 font-bold border-b-2 border-stone-950 pb-0.5'
+                  : ''
+              }`}
+            >
+              {replaceBrandName(navigationConfig.allDrops.label, brandName)}
+            </button>
+          )}
+          {navigationConfig.summer.visible && (
+            <button
+              onClick={() => onSelectSeason('summer')}
+              className={`transition-colors hover:text-stone-950 cursor-pointer ${
+                activeSeason === 'summer'
+                  ? 'text-stone-950 font-bold border-b-2 border-stone-950 pb-0.5'
+                  : ''
+              }`}
+            >
+              {replaceBrandName(navigationConfig.summer.label, brandName)}
+            </button>
+          )}
+          {navigationConfig.winter.visible && (
+            <button
+              onClick={() => onSelectSeason('winter')}
+              className={`transition-colors hover:text-stone-950 cursor-pointer ${
+                activeSeason === 'winter'
+                  ? 'text-stone-950 font-bold border-b-2 border-stone-950 pb-0.5'
+                  : ''
+              }`}
+            >
+              {replaceBrandName(navigationConfig.winter.label, brandName)}
+            </button>
+          )}
+          {navigationConfig.preview.visible && (
+            <button
+              onClick={onOpenAppointment}
+              className="transition-colors hover:text-stone-950 cursor-pointer text-amber-900 font-bold flex items-center gap-1.5"
+            >
+              <Calendar className="w-3.5 h-3.5 text-amber-700" />
+              <span>{replaceBrandName(navigationConfig.preview.label, brandName)}</span>
+            </button>
+          )}
         </nav>
 
         {/* Zone 3: Primary Actions (Modern Pill Controls) */}
@@ -127,8 +142,9 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* Mobile Sub-Navigation Bar */}
-      <div className="md:hidden flex items-center justify-around border-t border-stone-200/70 py-2.5 text-[11px] uppercase tracking-wider text-stone-700 px-3 bg-[#FAF9F5]">
-        <button
+      {hasVisibleNavigation && (
+        <div className="md:hidden flex items-center justify-around border-t border-stone-200/70 py-2.5 text-[11px] uppercase tracking-wider text-stone-700 px-3 bg-[#FAF9F5]">
+          {navigationConfig.allDrops.visible && <button
           onClick={() => onSelectSeason('all')}
           className={`py-1 px-2 rounded-full cursor-pointer ${
             activeSeason === 'all'
@@ -136,9 +152,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               : 'text-stone-600'
           }`}
         >
-          All Drops
-        </button>
-        <button
+          {replaceBrandName(navigationConfig.allDrops.label, brandName)}
+        </button>}
+        {navigationConfig.summer.visible && <button
           onClick={() => onSelectSeason('summer')}
           className={`py-1 px-2 rounded-full cursor-pointer ${
             activeSeason === 'summer'
@@ -146,9 +162,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               : 'text-stone-600'
           }`}
         >
-          Summer Lawn
-        </button>
-        <button
+          {replaceBrandName(navigationConfig.summer.label, brandName)}
+        </button>}
+        {navigationConfig.winter.visible && <button
           onClick={() => onSelectSeason('winter')}
           className={`py-1 px-2 rounded-full cursor-pointer ${
             activeSeason === 'winter'
@@ -156,15 +172,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               : 'text-stone-600'
           }`}
         >
-          Winter Khaddar
-        </button>
-        <button
+          {replaceBrandName(navigationConfig.winter.label, brandName)}
+        </button>}
+        {navigationConfig.preview.visible && <button
           onClick={onOpenAppointment}
           className="py-1 px-2 text-amber-900 font-bold cursor-pointer"
         >
-          Video Preview
-        </button>
-      </div>
+          {replaceBrandName(navigationConfig.preview.label, brandName)}
+        </button>}
+        </div>
+      )}
     </header>
   );
 };

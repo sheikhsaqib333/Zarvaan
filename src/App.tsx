@@ -9,17 +9,11 @@ import {
   CustomMeasurements,
   ProductReview,
   PreviewAppointment,
-  LadiesUnstitchedCategory,
 } from './types/clothing';
-import {
-  SiteConfig,
-  DEFAULT_SITE_CONFIG,
-} from './types/siteConfig';
-import {
-  PRODUCTS,
-  INITIAL_REVIEWS,
-  FABRIC_CARE_TIPS,
-} from './data/products';
+import { SiteConfig, DEFAULT_SITE_CONFIG, mergeSiteConfig } from './types/siteConfig';
+import { PRODUCTS, INITIAL_REVIEWS } from './data/products';
+import { storeApi } from './lib/storeApi';
+import { usePersistentState } from './utils/storage';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { ProductCard } from './components/ProductCard';
@@ -32,54 +26,66 @@ import { WishlistModal } from './components/WishlistModal';
 import { CraftsmanshipSection } from './components/CraftsmanshipSection';
 import { Footer } from './components/Footer';
 import { FloatingSocialConcierge } from './components/FloatingSocialConcierge';
-import { AdminPortal } from './components/AdminPortal';
+import { AdminPortal } from './admin/AdminPortal';
+import { BrandNameProvider, replaceBrandName } from './context/BrandNameContext';
 import { Sun, CloudSnow, Check, SlidersHorizontal, Calendar } from 'lucide-react';
 
 export default function App() {
-  // Navigation & Seasonal Filter States
   const [activeSeason, setActiveSeason] = useState<Season | 'all'>('all');
   const [selectedCategory, setSelectedCategory] = useState<string | 'all'>('all');
   const [sortBy, setSortBy] = useState<'featured' | 'price-asc' | 'price-desc'>('featured');
   const [searchQuery, setSearchQuery] = useState('');
   const [currency, setCurrency] = useState<Currency>('PKR');
 
-  // Master Site Configuration (Managed exclusively via separate Admin Portal)
-  const [siteConfig, setSiteConfig] = useState<SiteConfig>(() => {
-    try {
-      const saved = localStorage.getItem('zavraan_site_config');
-      return saved ? JSON.parse(saved) : DEFAULT_SITE_CONFIG;
-    } catch {
-      return DEFAULT_SITE_CONFIG;
-    }
-  });
+  const [siteConfig, setSiteConfig] = useState<SiteConfig>(DEFAULT_SITE_CONFIG);
+  const [products, setProducts] = useState<Product[]>(PRODUCTS);
+  const [reviews, setReviews] = useState<ProductReview[]>(INITIAL_REVIEWS);
+  const [appointments, setAppointments] = useState<PreviewAppointment[]>([]);
+  const [cartItems, setCartItems] = usePersistentState<CartItem[]>('zavraan_cart', []);
+  const [wishlistIds, setWishlistIds] = usePersistentState<string[]>('zavraan_wishlist', []);
+  const [isDataLoading, setIsDataLoading] = useState(true);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('zavraan_site_config', JSON.stringify(siteConfig));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [siteConfig]);
+    const loadStoreData = async () => {
+      try {
+        const [serverConfig, serverProducts, serverReviews, serverAppointments] = await Promise.all([
+          storeApi.getSiteConfig(),
+          storeApi.getProducts(),
+          storeApi.getReviews(),
+          storeApi.getAppointments(),
+        ]);
 
-  // Catalog Products State (Can be created/updated/deleted via Admin Portal)
-  const [products, setProducts] = useState<Product[]>(() => {
-    try {
-      const saved = localStorage.getItem('zavraan_products');
-      return saved ? JSON.parse(saved) : PRODUCTS;
-    } catch {
-      return PRODUCTS;
-    }
-  });
+        setSiteConfig(mergeSiteConfig(serverConfig));
+        setProducts(serverProducts);
+        setReviews(serverReviews);
+        setAppointments(serverAppointments);
+      } catch (error) {
+        console.error('Failed to load store data from backend:', error);
+      } finally {
+        setIsDataLoading(false);
+      }
+    };
+
+    loadStoreData();
+  }, []);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('zavraan_products', JSON.stringify(products));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [products]);
+    const brandName = siteConfig.brandName.trim() || 'Zavraan';
+    document.title = `${brandName} Luxury Unstitched | Summer Lawn & Winter Dhanak`;
+    document
+      .querySelector('meta[property="og:title"]')
+      ?.setAttribute('content', document.title);
+    document
+      .querySelector('meta[name="description"]')
+      ?.setAttribute(
+        'content',
+        replaceBrandName(
+          'Zavraan luxury ladies unstitched designer clothing for summers and winters - fine combed lawns, cotton yardage, master designer replicas, slub khaddar, and double-brushed dhanak.',
+          brandName
+        )
+      );
+  }, [siteConfig.brandName]);
 
-  // Separate Admin Portal Activation Gate (?portal=admin or ?admin=true or Ctrl+Shift+A)
   const [isAdminPortalActive, setIsAdminPortalActive] = useState<boolean>(() => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
@@ -93,19 +99,18 @@ export default function App() {
     }
   });
 
-  // Secret keyboard listener for store owners: Ctrl+Shift+A or Cmd+Shift+A
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
-        e.preventDefault();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && (event.key === 'A' || event.key === 'a')) {
+        event.preventDefault();
         setIsAdminPortalActive((prev) => !prev);
       }
     };
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Modals & Drawers
   const [activeProductForDetail, setActiveProductForDetail] = useState<Product | null>(null);
   const [productForAppointment, setProductForAppointment] = useState<Product | null>(null);
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
@@ -115,83 +120,9 @@ export default function App() {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [checkoutDiscount, setCheckoutDiscount] = useState(0);
   const [checkoutPromo, setCheckoutPromo] = useState('');
-
-  // Toast Notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const catalogRef = useRef<HTMLDivElement>(null);
-
-  // Reviews state with persistence
-  const [reviews, setReviews] = useState<ProductReview[]>(() => {
-    try {
-      const saved = localStorage.getItem('zavraan_reviews');
-      return saved ? JSON.parse(saved) : INITIAL_REVIEWS;
-    } catch {
-      return INITIAL_REVIEWS;
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('zavraan_reviews', JSON.stringify(reviews));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [reviews]);
-
-  // Appointments state with persistence
-  const [appointments, setAppointments] = useState<PreviewAppointment[]>(() => {
-    try {
-      const saved = localStorage.getItem('zavraan_appointments');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('zavraan_appointments', JSON.stringify(appointments));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [appointments]);
-
-  // Cart state with persistence
-  const [cartItems, setCartItems] = useState<CartItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('zavraan_cart');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('zavraan_cart', JSON.stringify(cartItems));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [cartItems]);
-
-  // Wishlist state with persistence
-  const [wishlistIds, setWishlistIds] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('zavraan_wishlist');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('zavraan_wishlist', JSON.stringify(wishlistIds));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [wishlistIds]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -199,6 +130,8 @@ export default function App() {
       setToastMessage(null);
     }, 2800);
   };
+
+  const displayBrand = (text: string) => replaceBrandName(text, siteConfig.brandName);
 
   const handleToggleCurrency = () => {
     setCurrency((prev) => (prev === 'PKR' ? 'USD' : 'PKR'));
@@ -218,18 +151,15 @@ export default function App() {
   };
 
   const handleAddReview = (newRevData: Omit<ProductReview, 'id' | 'date'>) => {
-    const newRev: ProductReview = {
-      ...newRevData,
-      id: `rev-${Date.now()}`,
-      date: new Date().toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      }),
-    };
-
-    setReviews((prev) => [newRev, ...prev]);
-    showToast('Your verified review was submitted!');
+    storeApi.submitReview(newRevData)
+      .then((newReview) => {
+        setReviews((prev) => [newReview, ...prev]);
+        showToast('Your verified review was submitted!');
+      })
+      .catch((error) => {
+        console.error('Unable to submit review:', error);
+        showToast('Review could not be submitted. Please try again.');
+      });
   };
 
   const handleAddToCart = (
@@ -302,8 +232,15 @@ export default function App() {
   };
 
   const handleBookAppointment = (appt: PreviewAppointment) => {
-    setAppointments((prev) => [appt, ...prev]);
-    showToast(`Fabric preview appointment ${appt.id} confirmed!`);
+    storeApi.submitAppointment(appt)
+      .then((savedAppointment) => {
+        setAppointments((prev) => [savedAppointment, ...prev]);
+        showToast(`Fabric preview appointment ${savedAppointment.id} confirmed!`);
+      })
+      .catch((error) => {
+        console.error('Unable to submit appointment:', error);
+        showToast('Appointment could not be saved. Please try again.');
+      });
   };
 
   const scrollToCatalog = () => {
@@ -359,41 +296,97 @@ export default function App() {
 
   const totalCartCount = cartItems.reduce((acc, curr) => acc + curr.quantity, 0);
 
+  const persistSiteConfig = async (nextConfig: SiteConfig) => {
+    setSiteConfig(nextConfig);
+    await storeApi.saveSiteConfig(nextConfig);
+  };
+
+  const persistProducts = async (nextProducts: Product[]) => {
+    setProducts(nextProducts);
+    await storeApi.saveProducts(nextProducts);
+  };
+
+  const persistReviews = async (nextReviews: ProductReview[]) => {
+    setReviews(nextReviews);
+    await storeApi.saveReviews(nextReviews);
+  };
+
+  const persistAppointments = async (nextAppointments: PreviewAppointment[]) => {
+    setAppointments(nextAppointments);
+    await storeApi.saveAppointments(nextAppointments);
+  };
+
+  const seasonCounts = useMemo(
+    () => ({
+      all: productsWithLiveRatings.length,
+      summer: productsWithLiveRatings.filter((product) => product.season === 'summer').length,
+      winter: productsWithLiveRatings.filter((product) => product.season === 'winter').length,
+    }),
+    [productsWithLiveRatings]
+  );
+
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    productsWithLiveRatings.forEach((product) => {
+      counts.set(product.category, (counts.get(product.category) ?? 0) + 1);
+    });
+
+    return counts;
+  }, [productsWithLiveRatings]);
+
+  const getCategoryCount = (category: string) => categoryCounts.get(category) ?? 0;
+
+  if (isDataLoading) {
+    return (
+      <div className="min-h-screen bg-[#FAF9F5] flex items-center justify-center text-stone-700">
+        <div className="text-center">
+          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-stone-300 border-t-amber-700" />
+          <p className="mt-4 text-sm font-medium uppercase tracking-[0.2em] text-stone-500">
+            Loading Store Data...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // ================= TOTALLY SEPARATE ADMIN PORTAL VIEW =================
   if (isAdminPortalActive) {
     return (
-      <AdminPortal
-        siteConfig={siteConfig}
-        onUpdateSiteConfig={(newConfig) => {
-          setSiteConfig(newConfig);
-        }}
-        products={products}
-        onUpdateProducts={(newProds) => {
-          setProducts(newProds);
-        }}
-        appointments={appointments}
-        reviews={reviews}
-        onDeleteReview={(revId) => {
-          setReviews((prev) => prev.filter((r) => r.id !== revId));
-        }}
-        onExitAdmin={() => {
-          setIsAdminPortalActive(false);
-          try {
-            const url = new URL(window.location.href);
-            url.searchParams.delete('portal');
-            url.searchParams.delete('admin');
-            window.history.replaceState({}, '', url.toString());
-          } catch (e) {
-            console.error(e);
-          }
-        }}
-      />
+      <BrandNameProvider brandName={siteConfig.brandName}>
+        <AdminPortal
+          siteConfig={siteConfig}
+          onUpdateSiteConfig={persistSiteConfig}
+          products={products}
+          onUpdateProducts={persistProducts}
+          appointments={appointments}
+          reviews={reviews}
+          onUpdateReviews={persistReviews}
+          onUpdateAppointments={persistAppointments}
+          onDeleteReview={(revId) => {
+            const nextReviews = reviews.filter((r) => r.id !== revId);
+            persistReviews(nextReviews);
+          }}
+          onExitAdmin={() => {
+            setIsAdminPortalActive(false);
+            try {
+              const url = new URL(window.location.href);
+              url.searchParams.delete('portal');
+              url.searchParams.delete('admin');
+              window.history.replaceState({}, '', url.toString());
+            } catch (e) {
+              console.error(e);
+            }
+          }}
+        />
+      </BrandNameProvider>
     );
   }
 
   // ================= CLEAN LUXURY CUSTOMER STOREFRONT =================
   return (
-    <div className="min-h-screen bg-[#FAF9F5] text-stone-900 flex flex-col font-sans">
+    <BrandNameProvider brandName={siteConfig.brandName}>
+      <div className="min-h-screen bg-[#FAF9F5] text-stone-900 flex flex-col font-sans">
       {/* Toast Alert */}
       {toastMessage && (
         <div className="fixed bottom-6 left-6 z-50 bg-stone-900 text-white px-4 py-2.5 text-xs font-medium shadow-2xl flex items-center gap-2 border border-stone-700 animate-fadeIn">
@@ -415,6 +408,7 @@ export default function App() {
           setSelectedCategory('all');
         }}
         activeSeason={activeSeason}
+        navigationConfig={siteConfig.navigation}
         onOpenAppointment={() => {
           setProductForAppointment(null);
           setIsAppointmentModalOpen(true);
@@ -460,16 +454,16 @@ export default function App() {
             </div>
             <h2 className="text-3xl sm:text-4xl font-bold text-stone-950 tracking-tight">
               {activeSeason === 'summer'
-                ? siteConfig.categories.summerCollectionTitle
+                ? displayBrand(siteConfig.categories.summerCollectionTitle)
                 : activeSeason === 'winter'
-                ? siteConfig.categories.winterCollectionTitle
+                ? displayBrand(siteConfig.categories.winterCollectionTitle)
                 : 'Curated Unstitched Drops'}
             </h2>
             <p className="text-xs sm:text-sm text-stone-600 mt-1 max-w-xl font-light">
               {activeSeason === 'summer'
-                ? siteConfig.categories.summerCollectionSubtitle
+                ? displayBrand(siteConfig.categories.summerCollectionSubtitle)
                 : activeSeason === 'winter'
-                ? siteConfig.categories.winterCollectionSubtitle
+                ? displayBrand(siteConfig.categories.winterCollectionSubtitle)
                 : '100% pure 3-piece unstitched fabric sets. Pure combed lawns, master replicas, slub khaddar & plush dhanak.'}
             </p>
           </div>
@@ -520,7 +514,7 @@ export default function App() {
                   : 'text-stone-600 hover:text-stone-950'
               }`}
             >
-              All Drops ({productsWithLiveRatings.length})
+              All Drops ({seasonCounts.all})
             </button>
             <button
               onClick={() => {
@@ -534,7 +528,7 @@ export default function App() {
               }`}
             >
               <Sun className="w-3.5 h-3.5 text-amber-400" />
-              <span>Summer Lawn & Cotton ({productsWithLiveRatings.filter((p) => p.season === 'summer').length})</span>
+              <span>Summer Lawn & Cotton ({seasonCounts.summer})</span>
             </button>
             <button
               onClick={() => {
@@ -548,7 +542,7 @@ export default function App() {
               }`}
             >
               <CloudSnow className="w-3.5 h-3.5 text-sky-400" />
-              <span>Winter Khaddar & Dhanak ({productsWithLiveRatings.filter((p) => p.season === 'winter').length})</span>
+              <span>Winter Khaddar & Dhanak ({seasonCounts.winter})</span>
             </button>
           </div>
 
@@ -583,10 +577,10 @@ export default function App() {
                       : 'bg-white text-stone-700 border-stone-300 hover:border-stone-900'
                   }`}
                 >
-                  All Summer Fabrics ({productsWithLiveRatings.filter((p) => p.season === 'summer').length})
+                  All Summer Fabrics ({seasonCounts.summer})
                 </button>
                 {siteConfig.categories.summerCategories.map((cat) => {
-                  const count = productsWithLiveRatings.filter((p) => p.category === cat).length;
+                  const count = getCategoryCount(cat);
                   return (
                     <button
                       key={cat}
@@ -597,7 +591,7 @@ export default function App() {
                           : 'bg-white text-stone-700 border-stone-300 hover:border-stone-900'
                       }`}
                     >
-                      <span>{cat}</span>
+                      <span>{displayBrand(cat)}</span>
                       <span className="text-[10px] opacity-75 font-mono">({count})</span>
                     </button>
                   );
@@ -630,10 +624,10 @@ export default function App() {
                       : 'bg-white text-stone-700 border-stone-300 hover:border-stone-900'
                   }`}
                 >
-                  All Winter Fabrics ({productsWithLiveRatings.filter((p) => p.season === 'winter').length})
+                  All Winter Fabrics ({seasonCounts.winter})
                 </button>
                 {siteConfig.categories.winterCategories.map((cat) => {
-                  const count = productsWithLiveRatings.filter((p) => p.category === cat).length;
+                  const count = getCategoryCount(cat);
                   return (
                     <button
                       key={cat}
@@ -644,7 +638,7 @@ export default function App() {
                           : 'bg-white text-stone-700 border-stone-300 hover:border-stone-900'
                       }`}
                     >
-                      <span>{cat}</span>
+                      <span>{displayBrand(cat)}</span>
                       <span className="text-[10px] opacity-75 font-mono">({count})</span>
                     </button>
                   );
@@ -664,18 +658,18 @@ export default function App() {
                   onChange={(e) => setSelectedCategory(e.target.value)}
                   className="bg-white border border-stone-300 px-3.5 py-1.5 text-xs text-stone-900 font-bold rounded-full focus:outline-none cursor-pointer shadow-2xs"
                 >
-                  <option value="all">All Subcategories ({productsWithLiveRatings.length})</option>
+                  <option value="all">All Subcategories ({seasonCounts.all})</option>
                   <optgroup label="Summer Fabrics">
                     {siteConfig.categories.summerCategories.map((cat) => (
                       <option key={cat} value={cat}>
-                        {cat} ({productsWithLiveRatings.filter((p) => p.category === cat).length})
+                        {displayBrand(cat)} ({getCategoryCount(cat)})
                       </option>
                     ))}
                   </optgroup>
                   <optgroup label="Winter Fabrics">
                     {siteConfig.categories.winterCategories.map((cat) => (
                       <option key={cat} value={cat}>
-                        {cat} ({productsWithLiveRatings.filter((p) => p.category === cat).length})
+                        {displayBrand(cat)} ({getCategoryCount(cat)})
                       </option>
                     ))}
                   </optgroup>
@@ -687,7 +681,7 @@ export default function App() {
                   onClick={() => setSelectedCategory('all')}
                   className="text-xs text-amber-900 font-semibold hover:underline cursor-pointer"
                 >
-                  Clear category filter ({selectedCategory})
+                  Clear category filter ({displayBrand(selectedCategory)})
                 </button>
               )}
             </div>
@@ -699,7 +693,7 @@ export default function App() {
           <div className="mb-6 flex items-center gap-2 text-xs">
             <span className="text-stone-500">Filtered by:</span>
             <span className="bg-amber-100 text-amber-900 font-medium px-2.5 py-1 rounded-full flex items-center gap-1.5">
-              <span>{selectedCategory}</span>
+              <span>{displayBrand(selectedCategory)}</span>
               <button
                 onClick={() => setSelectedCategory('all')}
                 className="hover:text-stone-900 font-bold ml-1 cursor-pointer"
@@ -750,7 +744,10 @@ export default function App() {
       </section>
 
       {/* Craftsmanship & Authenticity Section */}
-      <CraftsmanshipSection onOpenAppointment={() => setIsAppointmentModalOpen(true)} />
+      <CraftsmanshipSection
+        config={siteConfig.craftsmanship}
+        onOpenAppointment={() => setIsAppointmentModalOpen(true)}
+      />
 
       {/* Customer Footer (Admin buttons removed, completely dynamic) */}
       <Footer
@@ -846,6 +843,7 @@ export default function App() {
         onQuickView={setActiveProductForDetail}
         onAddToCart={(prod) => handleAddToCart(prod, 'unstitched')}
       />
-    </div>
+      </div>
+    </BrandNameProvider>
   );
 }

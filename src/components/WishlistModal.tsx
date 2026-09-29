@@ -1,6 +1,7 @@
 import React from 'react';
 import { Product, Currency } from '../types/clothing';
 import { X, Heart, ShoppingCart, Trash2 } from 'lucide-react';
+import { replaceBrandName, useBrandName } from '../context/BrandNameContext';
 
 interface WishlistModalProps {
   isOpen: boolean;
@@ -23,6 +24,8 @@ export const WishlistModal: React.FC<WishlistModalProps> = ({
   onQuickView,
   onAddToCart,
 }) => {
+  const brandName = useBrandName();
+  const displayBrand = (text: string) => replaceBrandName(text, brandName);
   if (!isOpen) return null;
 
   const wishlistedProducts = allProducts.filter((p) => wishlistProductIds.includes(p.id));
@@ -65,7 +68,7 @@ export const WishlistModal: React.FC<WishlistModalProps> = ({
                 <div className="flex items-center gap-3">
                   <img
                     src={product.primaryImage}
-                    alt={product.name}
+                    alt={displayBrand(product.name)}
                     className="w-16 h-20 object-cover rounded-xs border border-stone-200 cursor-pointer"
                     onClick={() => {
                       onClose();
@@ -74,7 +77,7 @@ export const WishlistModal: React.FC<WishlistModalProps> = ({
                   />
                   <div>
                     <span className="text-[10px] uppercase tracking-wider text-amber-900 font-medium">
-                      {product.category}
+                      {displayBrand(product.category)}
                     </span>
                     <h4
                       className="font-serif text-sm font-medium text-stone-900 cursor-pointer hover:underline"
@@ -83,7 +86,7 @@ export const WishlistModal: React.FC<WishlistModalProps> = ({
                         onQuickView(product);
                       }}
                     >
-                      {product.name}
+                      {displayBrand(product.name)}
                     </h4>
                     <span className="font-mono text-xs font-semibold text-stone-900 tabular-nums">
                       {currency === 'PKR' ? `PKR ${product.pricePKR.toLocaleString()}` : `$${product.priceUSD.toFixed(2)}`}

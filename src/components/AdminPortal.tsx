@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Product,
   Season,
@@ -7,10 +7,17 @@ import {
   ProductReview,
   PreviewAppointment,
 } from '../types/clothing';
+import { storeApi } from '../lib/storeApi';
 import {
   SiteConfig,
+  NavigationConfig,
+  CraftsmanshipConfig,
   DEFAULT_SITE_CONFIG,
+  mergeSiteConfig,
+  HeroSlideConfig,
 } from '../types/siteConfig';
+import { buildDefaultHeroSlides } from '../utils/heroSlides';
+import { replaceBrandName, useBrandName } from '../context/BrandNameContext';
 import {
   HERO_IMAGE,
   SUMMER_LAWN_IMAGE,
@@ -46,20 +53,29 @@ import {
   Phone,
   Instagram,
   AlertCircle,
+  BarChart3,
+  Database,
+  Download,
+  GripVertical,
+  ImageUp,
+  Crop,
+  SlidersHorizontal,
 } from 'lucide-react';
 
-interface AdminPortalProps {
+export interface AdminPortalProps {
   siteConfig: SiteConfig;
-  onUpdateSiteConfig: (newConfig: SiteConfig) => void;
+  onUpdateSiteConfig: (newConfig: SiteConfig) => Promise<void> | void;
   products: Product[];
-  onUpdateProducts: (newProducts: Product[]) => void;
+  onUpdateProducts: (newProducts: Product[]) => Promise<void> | void;
   appointments: PreviewAppointment[];
   reviews: ProductReview[];
+  onUpdateReviews?: (reviews: ProductReview[]) => void;
+  onUpdateAppointments?: (appointments: PreviewAppointment[]) => void;
   onDeleteReview: (reviewId: string) => void;
   onExitAdmin: () => void;
 }
 
-const PRESET_ASSET_IMAGES = [
+export const PRESET_ASSET_IMAGES = [
   { name: 'Editorial Lawn Banner', url: HERO_IMAGE },
   { name: 'Summer Lawn Suit', url: SUMMER_LAWN_IMAGE },
   { name: 'Lawn Digital Prints', url: LAWN_PRINTS_IMAGE },
@@ -74,24 +90,31 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   onUpdateProducts,
   appointments,
   reviews,
+  onUpdateReviews,
+  onUpdateAppointments,
   onDeleteReview,
   onExitAdmin,
 }) => {
+  const brandName = useBrandName();
+
   // Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     try {
-      return sessionStorage.getItem('zavraan_admin_auth') === 'true';
+      return Boolean(sessionStorage.getItem('zavraan_admin_token'));
     } catch {
       return false;
     }
   });
   const [passcodeAttempt, setPasscodeAttempt] = useState('');
+  const [newAdminPasscode, setNewAdminPasscode] = useState('');
   const [authError, setAuthError] = useState('');
 
   // Active Tab in Management Center
   type AdminTab =
+    | 'dashboard'
     | 'home'
     | 'categories'
+    | 'storefront_layout'
     | 'products'
     | 'payments'
     | 'social'
@@ -101,15 +124,76 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [activeTab, setActiveTab] = useState<AdminTab>('home');
 
   // Local drafts
-  const [draftConfig, setDraftConfig] = useState<SiteConfig>(siteConfig);
+  const [draftConfig, setDraftConfig] = useState<SiteConfig>(() => mergeSiteConfig(siteConfig));
   const [draftProducts, setDraftProducts] = useState<Product[]>(products);
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
+  const [draggedProductId, setDraggedProductId] = useState<string | null>(null);
+  const [dropTargetProductId, setDropTargetProductId] = useState<string | null>(null);
+  const [cropEditor, setCropEditor] = useState<{
+    source: string;
+    target: 'hero' | 'product' | 'heroSlide' | 'summerFeature' | 'winterFeature';
+    slideId?: string;
+    cropX: number;
+    cropY: number;
+    cropWidth: number;
+    cropHeight: number;
+    outputWidth: number;
+    outputHeight: number;
+  } | null>(null);
 
   // Product Editing / Creation State
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isCreatingProduct, setIsCreatingProduct] = useState(false);
   const [productSearch, setProductSearch] = useState('');
   const [productSeasonFilter, setProductSeasonFilter] = useState<'all' | Season>('all');
+  const draftHeroSlides =
+    draftConfig.homeScreen.heroSlides ??
+    buildDefaultHeroSlides(draftProducts, draftConfig.homeScreen.heroImage);
+
+  const updateDraftHeroSlides = (heroSlides: HeroSlideConfig[]) => {
+    setDraftConfig((current) => ({
+      ...current,
+      homeScreen: {
+        ...current.homeScreen,
+        heroSlides,
+      },
+    }));
+  };
+
+  const updateNavigationLink = <K extends keyof NavigationConfig>(
+    key: K,
+    updates: Partial<NavigationConfig[K]>
+  ) => {
+    setDraftConfig((current) => ({
+      ...current,
+      navigation: {
+        ...current.navigation,
+        [key]: { ...current.navigation[key], ...updates },
+      },
+    }));
+  };
+
+  const updateCraftsmanshipRoot = (
+    updates: Partial<Pick<CraftsmanshipConfig, 'visible' | 'eyebrow' | 'title' | 'titleAccent' | 'description'>>
+  ) => {
+    setDraftConfig((current) => ({
+      ...current,
+      craftsmanship: { ...current.craftsmanship, ...updates },
+    }));
+  };
+
+  const updateCraftsmanshipCard = <K extends 'tailoring' | 'summerFeature' | 'winterFeature' | 'preview'>(
+    key: K,
+    updates: Partial<CraftsmanshipConfig[K]>
+  ) => {
+    setDraftConfig((current) => ({
+      ...current,
+      craftsmanship: {
+        ...current.craftsmanship,
+        [key]: { ...current.craftsmanship[key], ...updates },
+      },
+    }));
+  };
 
   // Blank product template for creation
   const blankProduct: Product = {
@@ -149,41 +233,378 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setTimeout(() => setFeedbackMsg(null), 3500);
   };
 
+  const downloadTextFile = (filename: string, content: string, mimeType: string) => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  };
+
+  const getMigrationPayload = () => ({
+    siteConfig: draftConfig,
+    products: draftProducts,
+    reviews,
+    appointments,
+  });
+
+  const generateSqlMigration = () => {
+    const payload = getMigrationPayload();
+    const escapeSqlValue = (value: string) =>
+      value
+        .replace(/'/g, "''")
+        .replace(/\r/g, '');
+
+    const siteConfigSql = `INSERT OR REPLACE INTO site_config (id, data) VALUES (1, '${escapeSqlValue(JSON.stringify(payload.siteConfig))}');`;
+    const productsSql = `INSERT OR REPLACE INTO products (id, data) VALUES (1, '${escapeSqlValue(JSON.stringify(payload.products))}');`;
+    const reviewsSql = `INSERT OR REPLACE INTO reviews (id, data) VALUES (1, '${escapeSqlValue(JSON.stringify(payload.reviews))}');`;
+    const appointmentsSql = `INSERT OR REPLACE INTO appointments (id, data) VALUES (1, '${escapeSqlValue(JSON.stringify(payload.appointments))}');`;
+
+    return `-- Zavraan SQLite migration\nBEGIN;\nCREATE TABLE IF NOT EXISTS site_config (id INTEGER PRIMARY KEY CHECK (id = 1), data TEXT NOT NULL);\nCREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY CHECK (id = 1), data TEXT NOT NULL);\nCREATE TABLE IF NOT EXISTS reviews (id INTEGER PRIMARY KEY CHECK (id = 1), data TEXT NOT NULL);\nCREATE TABLE IF NOT EXISTS appointments (id INTEGER PRIMARY KEY CHECK (id = 1), data TEXT NOT NULL);\n${siteConfigSql}\n${productsSql}\n${reviewsSql}\n${appointmentsSql}\nCOMMIT;`;
+  };
+
+  const generateFirebasePayload = () => ({
+    siteConfig: draftConfig,
+    products: draftProducts,
+    reviews,
+    appointments,
+  });
+
+  const handleExportSqlMigration = () => {
+    downloadTextFile('zavraan-sql-migration.sql', generateSqlMigration(), 'application/sql');
+    showToast('SQL migration generated and downloaded.');
+  };
+
+  const handleExportFirebaseMigration = () => {
+    const payload = generateFirebasePayload();
+    downloadTextFile(
+      'zavraan-firebase-migration.json',
+      JSON.stringify(payload, null, 2),
+      'application/json'
+    );
+    showToast('Firebase-ready export generated and downloaded.');
+  };
+
+  const handleImportMigrationFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    try {
+      const raw = await file.text();
+      const parsed = JSON.parse(raw);
+
+      if (parsed.siteConfig || parsed.products || parsed.reviews || parsed.appointments) {
+        const nextConfig = mergeSiteConfig(parsed.siteConfig ?? draftConfig);
+        const nextProducts = parsed.products ?? draftProducts;
+        const nextReviews = parsed.reviews ?? reviews;
+        const nextAppointments = parsed.appointments ?? appointments;
+
+        setDraftConfig(nextConfig);
+        setDraftProducts(nextProducts);
+        onUpdateSiteConfig(nextConfig);
+        onUpdateProducts(nextProducts);
+        onUpdateReviews?.(nextReviews);
+        onUpdateAppointments?.(nextAppointments);
+        showToast('Migrated content applied successfully.');
+        return;
+      }
+
+      throw new Error('Unsupported migration file');
+    } catch (error) {
+      console.error(error);
+      showToast('Migration import failed. Use a valid JSON export from this admin panel.');
+    } finally {
+      event.target.value = '';
+    }
+  };
+
+  const dashboardStats = useMemo(() => {
+    const stockCount = draftProducts.filter((product) => product.inStock).length;
+    const saleValuePKR = draftProducts.reduce((total, product) => total + product.pricePKR, 0);
+    const bestsellerCount = draftProducts.filter((product) => product.isBestseller).length;
+    const averagePricePKR = draftProducts.length ? Math.round(saleValuePKR / draftProducts.length) : 0;
+
+    return {
+      totalProducts: draftProducts.length,
+      inStock: stockCount,
+      outOfStock: draftProducts.length - stockCount,
+      totalReviews: reviews.length,
+      totalAppointments: appointments.length,
+      bestsellerCount,
+      averagePricePKR,
+      enabledPaymentMethods: Object.values(draftConfig.paymentMethods).filter(
+        (method) => 'enabled' in method && method.enabled
+      ).length,
+    };
+  }, [appointments.length, draftConfig.paymentMethods, draftProducts, reviews.length]);
+
+  const openCropEditor = (
+    file: File,
+    target: 'hero' | 'product' | 'heroSlide' | 'summerFeature' | 'winterFeature',
+    slideId?: string
+  ) => {
+    const fileReader = new FileReader();
+    fileReader.onload = () => {
+      const source = typeof fileReader.result === 'string' ? fileReader.result : '';
+      if (!source) {
+        showToast('Image could not be processed. Please try another file.');
+        return;
+      }
+
+      setCropEditor({
+        source,
+        target,
+        slideId,
+        cropX: 0,
+        cropY: 0,
+        cropWidth: 100,
+        cropHeight: 100,
+        outputWidth: 1200,
+        outputHeight: 1200,
+      });
+    };
+    fileReader.readAsDataURL(file);
+  };
+
+  const applyCropToImage = async () => {
+    if (!cropEditor) {
+      return;
+    }
+
+    const image = new Image();
+    image.onload = async () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = cropEditor.outputWidth;
+      canvas.height = cropEditor.outputHeight;
+
+      const context = canvas.getContext('2d');
+      if (!context) {
+        showToast('Image editor is unavailable in this browser.');
+        return;
+      }
+
+      const cropX = (image.width * cropEditor.cropX) / 100;
+      const cropY = (image.height * cropEditor.cropY) / 100;
+      const cropWidth = (image.width * cropEditor.cropWidth) / 100;
+      const cropHeight = (image.height * cropEditor.cropHeight) / 100;
+
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, cropEditor.outputWidth, cropEditor.outputHeight);
+      context.drawImage(
+        image,
+        cropX,
+        cropY,
+        cropWidth,
+        cropHeight,
+        0,
+        0,
+        cropEditor.outputWidth,
+        cropEditor.outputHeight
+      );
+
+      const blob = await new Promise<Blob>((resolve) => canvas.toBlob((value) => resolve(value ?? new Blob()), 'image/jpeg', 0.92));
+      const file = new File([blob], `cropped-${Date.now()}.jpg`, { type: 'image/jpeg' });
+
+      try {
+        const result = await storeApi.uploadImage(file);
+        const imageUrl = result.url;
+
+        if (cropEditor.target === 'hero') {
+          setDraftConfig({
+            ...draftConfig,
+            homeScreen: {
+              ...draftConfig.homeScreen,
+              heroImage: imageUrl,
+            },
+          });
+        } else if (cropEditor.target === 'heroSlide' && cropEditor.slideId) {
+          updateDraftHeroSlides(
+            draftHeroSlides.map((slide) =>
+              slide.id === cropEditor.slideId ? { ...slide, image: imageUrl } : slide
+            )
+          );
+        } else if (cropEditor.target === 'summerFeature' || cropEditor.target === 'winterFeature') {
+          updateCraftsmanshipCard(cropEditor.target, { image: imageUrl });
+        } else if (editingProduct) {
+          setEditingProduct({
+            ...editingProduct,
+            primaryImage: imageUrl,
+          });
+        }
+
+        showToast('Image cropped, resized, and uploaded successfully.');
+      } catch (error) {
+        console.error(error);
+        showToast('Crop upload failed. Please try another image.');
+      } finally {
+        setCropEditor(null);
+      }
+    };
+
+    image.src = cropEditor.source;
+  };
+
+  const handleExportStore = async () => {
+    try {
+      const payload = await storeApi.exportStore();
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'zavraan-store-export.json';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showToast('Store content exported successfully.');
+    } catch (error) {
+      console.error(error);
+      showToast('Export failed. Please try again.');
+    }
+  };
+
+  const handleImportStore = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const payload = JSON.parse(text);
+      const nextConfig = mergeSiteConfig(payload.siteConfig ?? draftConfig);
+      const nextProducts = payload.products ?? draftProducts;
+      const nextReviews = payload.reviews ?? reviews;
+      const nextAppointments = payload.appointments ?? appointments;
+
+      setDraftConfig(nextConfig);
+      setDraftProducts(nextProducts);
+      onUpdateSiteConfig(nextConfig);
+      onUpdateProducts(nextProducts);
+      onUpdateReviews?.(nextReviews);
+      onUpdateAppointments?.(nextAppointments);
+      showToast('Store data imported successfully.');
+    } catch (error) {
+      console.error(error);
+      showToast('Import failed. Please choose a valid JSON export file.');
+    } finally {
+      event.target.value = '';
+    }
+  };
+
+  const handleUploadAsset = async (
+    file: File,
+    target: 'hero' | 'product' | 'heroSlide' | 'summerFeature' | 'winterFeature',
+    slideId?: string
+  ) => {
+    openCropEditor(file, target, slideId);
+  };
+
+  const handleProductDragStart = (productId: string) => {
+    setDraggedProductId(productId);
+    setDropTargetProductId(productId);
+  };
+
+  const handleProductDrop = (targetProductId: string) => {
+    if (!draggedProductId || draggedProductId === targetProductId) {
+      setDraggedProductId(null);
+      setDropTargetProductId(null);
+      return;
+    }
+
+    const reordered = [...draftProducts];
+    const sourceIndex = reordered.findIndex((product) => product.id === draggedProductId);
+    const targetIndex = reordered.findIndex((product) => product.id === targetProductId);
+
+    if (sourceIndex < 0 || targetIndex < 0) {
+      setDraggedProductId(null);
+      setDropTargetProductId(null);
+      return;
+    }
+
+    const [moved] = reordered.splice(sourceIndex, 1);
+    reordered.splice(targetIndex, 0, moved);
+    setDraftProducts(reordered);
+    onUpdateProducts(reordered);
+    setDraggedProductId(null);
+    setDropTargetProductId(null);
+  };
+
   // Auth Handler
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (passcodeAttempt.trim() === draftConfig.adminPasscode) {
+    try {
+      const result = await storeApi.loginAdmin(passcodeAttempt);
+      sessionStorage.setItem('zavraan_admin_token', result.token);
       setIsAuthenticated(true);
       setAuthError('');
-      try {
-        sessionStorage.setItem('zavraan_admin_auth', 'true');
-      } catch (err) {
-        console.error(err);
-      }
-    } else {
-      setAuthError('Unauthorized: The passcode entered is incorrect. Access denied.');
+    } catch {
+      setAuthError('Incorrect passcode or admin service unavailable.');
     }
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
     try {
-      sessionStorage.removeItem('zavraan_admin_auth');
+      sessionStorage.removeItem('zavraan_admin_token');
     } catch (err) {
       console.error(err);
     }
   };
 
-  // Save changes to Global App State & Storage
-  const handleSaveConfig = () => {
-    onUpdateSiteConfig(draftConfig);
-    showToast('Atelier settings updated and published to customer store!');
+  const handleChangeAdminPasscode = async () => {
+    try {
+      await storeApi.changeAdminPasscode(newAdminPasscode);
+      setNewAdminPasscode('');
+      showToast('Admin passcode updated successfully.');
+    } catch (error) {
+      console.error('Unable to update admin passcode:', error);
+      showToast('Passcode must be at least 8 characters and the admin session must be active.');
+    }
   };
 
-  const handleSaveProducts = (updatedProds: Product[]) => {
+  // Save changes to Global App State & Storage
+  const handleSaveConfig = async (): Promise<boolean> => {
+    const brandName = draftConfig.brandName.trim();
+    if (!brandName) {
+      showToast('Enter a website brand name before publishing.');
+      return false;
+    }
+
+    try {
+      const nextConfig = { ...draftConfig, brandName };
+      setDraftConfig(nextConfig);
+      await onUpdateSiteConfig(nextConfig);
+      showToast('Atelier settings saved and published to customer store.');
+      return true;
+    } catch (error) {
+      console.error('Unable to save site settings:', error);
+      showToast('Settings could not be saved. Check that the backend is running and try again.');
+      return false;
+    }
+  };
+
+  const handleSaveProducts = async (updatedProds: Product[]) => {
     setDraftProducts(updatedProds);
-    onUpdateProducts(updatedProds);
-    showToast('Catalog updated successfully!');
+    try {
+      await onUpdateProducts(updatedProds);
+      showToast('Catalog saved successfully.');
+    } catch (error) {
+      console.error('Unable to save product catalog:', error);
+      showToast('Catalog could not be saved. Check that the backend is running and try again.');
+    }
+  };
+
+  const handlePreviewStore = async () => {
+    if (await handleSaveConfig()) {
+      onExitAdmin();
+    }
   };
 
   // Reset to Factory Defaults
@@ -214,7 +635,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               Restricted Management Portal
             </span>
             <h1 className="text-2xl font-serif text-white tracking-wide">
-              Zavraan Atelier System
+              {replaceBrandName('Zavraan Atelier System', brandName)}
             </h1>
             <p className="text-xs text-stone-400 mt-2 leading-relaxed font-light">
               This area is strictly restricted to store directors and administrative staff. Normal customers and visitors cannot access this console.
@@ -257,7 +678,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           </form>
 
           <div className="mt-6 pt-5 border-t border-stone-800/80 flex items-center justify-between text-xs text-stone-500">
-            <span className="text-[11px]">Default Passcode: zavraan@admin2026</span>
+            <span className="text-[11px]">Enter the current admin passcode configured in Security & Reset.</span>
             <button
               onClick={onExitAdmin}
               className="text-stone-400 hover:text-amber-400 cursor-pointer flex items-center gap-1 transition-colors"
@@ -287,12 +708,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-amber-700/80 border border-amber-500/50 flex items-center justify-center font-serif font-bold text-amber-200 text-sm">
-              Z
+              {brandName.charAt(0).toUpperCase()}
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-serif text-lg tracking-wider font-medium text-white">
-                  ZAVRAAN
+                  {brandName.toUpperCase()}
                 </span>
                 <span className="bg-amber-900/60 border border-amber-700/60 text-amber-300 text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-semibold">
                   Separate Master Admin
@@ -315,7 +736,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             </button>
 
             <button
-              onClick={onExitAdmin}
+              onClick={handlePreviewStore}
               className="bg-white/10 hover:bg-white/20 text-stone-200 text-xs px-3.5 py-2 font-medium flex items-center gap-1.5 rounded-xs transition-colors cursor-pointer border border-white/15"
               title="Preview Customer Website"
             >
@@ -336,6 +757,18 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         {/* Tab Strip */}
         <div className="bg-[#121110] border-t border-stone-800/80 px-4 sm:px-6 lg:px-8 overflow-x-auto">
           <div className="max-w-7xl mx-auto flex items-center gap-1 text-xs py-1">
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              className={`px-3.5 py-2 font-medium flex items-center gap-2 rounded-xs whitespace-nowrap transition-colors cursor-pointer ${
+                activeTab === 'dashboard'
+                  ? 'bg-amber-800/90 text-white'
+                  : 'text-stone-400 hover:text-stone-200 hover:bg-white/5'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              <span>0. Dashboard</span>
+            </button>
+
             <button
               onClick={() => setActiveTab('home')}
               className={`px-3.5 py-2 font-medium flex items-center gap-2 rounded-xs whitespace-nowrap transition-colors cursor-pointer ${
@@ -358,6 +791,18 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             >
               <Layers className="w-3.5 h-3.5" />
               <span>2. Categories & Titles</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('storefront_layout')}
+              className={`px-3.5 py-2 font-medium flex items-center gap-2 rounded-xs whitespace-nowrap transition-colors cursor-pointer ${
+                activeTab === 'storefront_layout'
+                  ? 'bg-amber-800/90 text-white'
+                  : 'text-stone-400 hover:text-stone-200 hover:bg-white/5'
+              }`}
+            >
+              <LayoutTemplate className="w-3.5 h-3.5" />
+              <span>Navigation & Story Section</span>
             </button>
 
             <button
@@ -437,6 +882,83 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
       {/* Main Workspace Body */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-1">
+        {activeTab === 'dashboard' && (
+          <div className="bg-white border border-stone-200 rounded-xs shadow-xs p-6 sm:p-8 space-y-6">
+            <div>
+              <span className="text-[11px] uppercase tracking-widest text-amber-900 font-semibold">
+                Store Performance Snapshot
+              </span>
+              <h2 className="text-2xl font-serif text-stone-900 mt-1">
+                Business Dashboard & Content Health
+              </h2>
+              <p className="text-xs text-stone-500 mt-1">
+                Monitor inventory, customer touchpoints, and content quality from a single operations view.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { label: 'Total Catalog Items', value: dashboardStats.totalProducts, accent: 'amber' },
+                { label: 'In Stock', value: dashboardStats.inStock, accent: 'emerald' },
+                { label: 'Reviews', value: dashboardStats.totalReviews, accent: 'violet' },
+                { label: 'Appointments', value: dashboardStats.totalAppointments, accent: 'sky' },
+              ].map((item) => (
+                <div key={item.label} className="border border-stone-200 bg-stone-50 p-4 rounded-xs">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-stone-500">{item.label}</p>
+                  <p className="mt-3 text-3xl font-serif text-stone-900">{item.value}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="border border-stone-200 rounded-xs p-4 bg-stone-50">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-stone-500">Average Pricing</p>
+                <p className="mt-3 text-2xl font-bold text-stone-900">PKR {dashboardStats.averagePricePKR.toLocaleString()}</p>
+                <p className="mt-2 text-[11px] text-stone-500">Current catalog average across all product listings.</p>
+              </div>
+
+              <div className="border border-stone-200 rounded-xs p-4 bg-stone-50">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-stone-500">Bestsellers</p>
+                <p className="mt-3 text-2xl font-bold text-stone-900">{dashboardStats.bestsellerCount}</p>
+                <p className="mt-2 text-[11px] text-stone-500">Featured products highlighted in the storefront.</p>
+              </div>
+
+              <div className="border border-stone-200 rounded-xs p-4 bg-stone-50">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-stone-500">Payment Channels</p>
+                <p className="mt-3 text-2xl font-bold text-stone-900">{dashboardStats.enabledPaymentMethods}</p>
+                <p className="mt-2 text-[11px] text-stone-500">Active checkout methods currently published to customers.</p>
+              </div>
+            </div>
+
+            <div className="p-4 border border-amber-200 bg-amber-50 rounded-xs space-y-3">
+              <div className="flex items-center gap-2 text-amber-950">
+                <Database className="w-4 h-4" />
+                <span className="text-[11px] uppercase tracking-[0.2em] font-semibold">Migration Tools</span>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={handleExportSqlMigration}
+                  className="bg-stone-900 text-white text-[10px] uppercase tracking-wider px-3 py-2 font-medium rounded-xs cursor-pointer"
+                >
+                  Export SQL Migration
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportFirebaseMigration}
+                  className="bg-amber-700 text-white text-[10px] uppercase tracking-wider px-3 py-2 font-medium rounded-xs cursor-pointer"
+                >
+                  Export Firebase JSON
+                </button>
+                <label className="bg-white border border-stone-300 text-stone-800 text-[10px] uppercase tracking-wider px-3 py-2 font-medium rounded-xs cursor-pointer">
+                  Import Migration JSON
+                  <input type="file" accept="application/json" className="hidden" onChange={handleImportMigrationFile} />
+                </label>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ================= 1. HOME SCREEN CONTENT TAB ================= */}
         {activeTab === 'home' && (
           <div className="bg-white border border-stone-200 rounded-xs shadow-xs p-6 sm:p-8 space-y-6">
@@ -450,6 +972,21 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               <p className="text-xs text-stone-500 mt-1">
                 Customize every title, subtitle, announcement badge, statistics, and button labels on the customer homepage.
               </p>
+            </div>
+
+            <div className="flex flex-wrap gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleExportStore}
+                className="bg-stone-900 text-white text-[10px] uppercase tracking-wider px-3 py-2 font-medium rounded-xs cursor-pointer"
+              >
+                Export Store JSON
+              </button>
+
+              <label className="bg-amber-700 text-white text-[10px] uppercase tracking-wider px-3 py-2 font-medium rounded-xs cursor-pointer">
+                Import Store JSON
+                <input type="file" accept="application/json" className="hidden" onChange={handleImportStore} />
+              </label>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-stone-100">
@@ -600,7 +1137,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 </div>
               </div>
 
-              {/* Statistics & Image Picker */}
+              {/* Homepage Statistics */}
               <div className="space-y-4">
                 <label className="block text-xs font-semibold text-stone-700 uppercase tracking-wider mb-1">
                   Homepage Metric Badges (3 Pillars)
@@ -705,60 +1242,183 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     />
                   </div>
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-stone-700 uppercase tracking-wider mb-1">
-                    Hero Showcase Image (Select Preset or Enter URL)
-                  </label>
-                  <div className="grid grid-cols-3 gap-2 mb-2">
-                    {PRESET_ASSET_IMAGES.slice(0, 3).map((preset) => (
-                      <button
-                        key={preset.name}
-                        type="button"
-                        onClick={() =>
-                          setDraftConfig({
-                            ...draftConfig,
-                            homeScreen: {
-                              ...draftConfig.homeScreen,
-                              heroImage: preset.url,
-                            },
-                          })
-                        }
-                        className={`text-left p-1 border rounded-xs cursor-pointer ${
-                          draftConfig.homeScreen.heroImage === preset.url
-                            ? 'border-amber-700 bg-amber-50 ring-1 ring-amber-700'
-                            : 'border-stone-200 hover:border-stone-400'
-                        }`}
-                      >
-                        <img
-                          src={preset.url}
-                          alt={preset.name}
-                          className="h-16 w-full object-cover rounded-2xs"
-                        />
-                        <span className="block text-[10px] text-stone-700 truncate mt-1">
-                          {preset.name}
-                        </span>
-                      </button>
-                    ))}
+              <section className="md:col-span-2 space-y-4 pt-5 border-t border-stone-100">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-stone-700 uppercase tracking-wider">
+                        Homepage slideshow
+                      </label>
+                      <p className="text-[10px] text-stone-500 mt-1">
+                        {draftHeroSlides.length} slides are shown on the storefront.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateDraftHeroSlides([
+                          ...draftHeroSlides,
+                          {
+                            id: `hero-slide-${Date.now()}`,
+                            image: draftHeroSlides[0]?.image ?? HERO_IMAGE,
+                            category: 'New collection',
+                            season: 'summer',
+                            caption: 'Add a short description for this collection.',
+                            dropTag: 'NEW DROP',
+                          },
+                        ])
+                      }
+                      className="bg-amber-800 hover:bg-amber-700 text-white text-[10px] uppercase tracking-wider px-3 py-2 font-medium rounded-xs cursor-pointer flex items-center gap-1.5"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Add slide
+                    </button>
                   </div>
 
-                  <input
-                    type="text"
-                    value={draftConfig.homeScreen.heroImage || HERO_IMAGE}
-                    onChange={(e) =>
-                      setDraftConfig({
-                        ...draftConfig,
-                        homeScreen: {
-                          ...draftConfig.homeScreen,
-                          heroImage: e.target.value,
-                        },
-                      })
-                    }
-                    placeholder="Enter custom image URL"
-                    className="w-full border border-stone-300 p-2 text-xs font-mono"
-                  />
-                </div>
-              </div>
+                  <div className="space-y-3">
+                    {draftHeroSlides.map((slide, index) => (
+                      <article
+                        key={slide.id}
+                        className="grid grid-cols-1 lg:grid-cols-[150px_1fr] gap-4 p-4 border border-stone-200 bg-stone-50 rounded-xs"
+                      >
+                        <div className="space-y-2">
+                          <img
+                            src={slide.image}
+                            alt={slide.category}
+                            className="w-full aspect-[4/3] object-cover border border-stone-200 bg-stone-100"
+                          />
+                          <label className="flex items-center justify-center gap-1.5 bg-stone-900 text-white text-[10px] uppercase tracking-wider px-3 py-2 rounded-xs cursor-pointer">
+                            <ImageUp className="w-3.5 h-3.5" />
+                            Crop & upload
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(event) => {
+                                const file = event.target.files?.[0];
+                                if (file) {
+                                  handleUploadAsset(file, 'heroSlide', slide.id);
+                                }
+                                event.target.value = '';
+                              }}
+                            />
+                          </label>
+                          <select
+                            aria-label={`Choose preset image for slide ${index + 1}`}
+                            value={PRESET_ASSET_IMAGES.some((preset) => preset.url === slide.image) ? slide.image : ''}
+                            onChange={(event) => {
+                              if (event.target.value) {
+                                updateDraftHeroSlides(
+                                  draftHeroSlides.map((item) =>
+                                    item.id === slide.id ? { ...item, image: event.target.value } : item
+                                  )
+                                );
+                              }
+                            }}
+                            className="w-full border border-stone-300 bg-white p-2 text-[10px]"
+                          >
+                            <option value="">Choose preset image</option>
+                            {PRESET_ASSET_IMAGES.map((preset) => (
+                              <option key={preset.name} value={preset.url}>{preset.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] uppercase tracking-[0.2em] font-semibold text-amber-900">
+                              Slide {index + 1}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={draftHeroSlides.length <= 1}
+                              onClick={() => updateDraftHeroSlides(draftHeroSlides.filter((item) => item.id !== slide.id))}
+                              className="p-1.5 text-stone-400 hover:text-red-700 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                              title="Remove slide"
+                              aria-label={`Remove slide ${index + 1}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-[10px] font-semibold text-stone-600 mb-1">Image URL</label>
+                              <input
+                                type="text"
+                                value={slide.image}
+                                onChange={(event) =>
+                                  updateDraftHeroSlides(draftHeroSlides.map((item) =>
+                                    item.id === slide.id ? { ...item, image: event.target.value } : item
+                                  ))
+                                }
+                                className="w-full border border-stone-300 bg-white p-2 text-xs font-mono"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-semibold text-stone-600 mb-1">Category / button text</label>
+                              <input
+                                type="text"
+                                value={slide.category}
+                                onChange={(event) =>
+                                  updateDraftHeroSlides(draftHeroSlides.map((item) =>
+                                    item.id === slide.id ? { ...item, category: event.target.value } : item
+                                  ))
+                                }
+                                className="w-full border border-stone-300 bg-white p-2 text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-semibold text-stone-600 mb-1">Collection badge</label>
+                              <input
+                                type="text"
+                                value={slide.dropTag ?? ''}
+                                onChange={(event) =>
+                                  updateDraftHeroSlides(draftHeroSlides.map((item) =>
+                                    item.id === slide.id ? { ...item, dropTag: event.target.value } : item
+                                  ))
+                                }
+                                className="w-full border border-stone-300 bg-white p-2 text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-semibold text-stone-600 mb-1">Season</label>
+                              <select
+                                value={slide.season}
+                                onChange={(event) =>
+                                  updateDraftHeroSlides(draftHeroSlides.map((item) =>
+                                    item.id === slide.id
+                                      ? { ...item, season: event.target.value as Season }
+                                      : item
+                                  ))
+                                }
+                                className="w-full border border-stone-300 bg-white p-2 text-xs"
+                              >
+                                <option value="summer">Summer</option>
+                                <option value="winter">Winter</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-semibold text-stone-600 mb-1">Slide description</label>
+                            <textarea
+                              rows={2}
+                              value={slide.caption}
+                              onChange={(event) =>
+                                updateDraftHeroSlides(draftHeroSlides.map((item) =>
+                                  item.id === slide.id ? { ...item, caption: event.target.value } : item
+                                ))
+                              }
+                              className="w-full border border-stone-300 bg-white p-2 text-xs"
+                            />
+                          </div>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+              </section>
             </div>
 
             <div className="pt-4 border-t border-stone-200 flex justify-end">
@@ -1042,6 +1702,231 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           </div>
         )}
 
+        {activeTab === 'storefront_layout' && (
+          <div className="bg-white border border-stone-200 rounded-xs shadow-xs p-6 sm:p-8 space-y-8">
+            <div>
+              <span className="text-[11px] uppercase tracking-widest text-amber-900 font-semibold">
+                Storefront Display Controls
+              </span>
+              <h2 className="text-2xl font-serif text-stone-900 mt-1">Navigation & Story Section</h2>
+              <p className="text-xs text-stone-500 mt-1">
+                Rename or hide top navigation links and edit the pictured editorial section.
+              </p>
+            </div>
+
+            <section className="border-t border-stone-100 pt-5">
+              <label className="block text-xs font-semibold text-stone-700 mb-1" htmlFor="store-brand-name">
+                Website brand name
+              </label>
+              <input
+                id="store-brand-name"
+                type="text"
+                required
+                maxLength={48}
+                value={draftConfig.brandName}
+                onChange={(event) =>
+                  setDraftConfig((current) => ({ ...current, brandName: event.target.value }))
+                }
+                placeholder="Enter the brand name"
+                className="w-full max-w-xl border border-stone-300 p-2.5 text-sm"
+              />
+              <p className="text-[11px] text-stone-500 mt-1">
+                Updates visible brand mentions throughout the storefront and page title.
+              </p>
+            </section>
+
+            <section className="space-y-4 border-t border-stone-100 pt-5">
+              <div>
+                <h3 className="text-sm font-semibold text-stone-900">Top navigation links</h3>
+                <p className="text-[11px] text-stone-500 mt-1">Hidden links are removed from desktop and mobile navigation.</p>
+              </div>
+              {(Object.keys(draftConfig.navigation) as (keyof NavigationConfig)[]).map((key) => {
+                const labels: Record<keyof NavigationConfig, string> = {
+                  allDrops: 'All products',
+                  summer: 'Summer collection',
+                  winter: 'Winter collection',
+                  preview: 'Video preview',
+                };
+                const link = draftConfig.navigation[key];
+
+                return (
+                  <div key={key} className="grid grid-cols-1 sm:grid-cols-[180px_1fr] gap-3 items-center p-3 bg-stone-50 border border-stone-200">
+                    <label className="flex items-center gap-2 text-xs font-semibold text-stone-800">
+                      <input
+                        type="checkbox"
+                        checked={link.visible}
+                        onChange={(event) => updateNavigationLink(key, { visible: event.target.checked })}
+                      />
+                      Show {labels[key]}
+                    </label>
+                    <input
+                      type="text"
+                      value={link.label}
+                      onChange={(event) => updateNavigationLink(key, { label: event.target.value })}
+                      aria-label={`${labels[key]} navigation label`}
+                      className="w-full border border-stone-300 bg-white p-2 text-xs"
+                    />
+                  </div>
+                );
+              })}
+            </section>
+
+            <section className="space-y-4 border-t border-stone-100 pt-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-stone-900">Editorial story section</h3>
+                  <p className="text-[11px] text-stone-500 mt-1">Control the entire section and its individual cards.</p>
+                </div>
+                <label className="flex items-center gap-2 text-xs font-semibold text-stone-800">
+                  <input
+                    type="checkbox"
+                    checked={draftConfig.craftsmanship.visible}
+                    onChange={(event) => updateCraftsmanshipRoot({ visible: event.target.checked })}
+                  />
+                  Show section
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-semibold text-stone-600 mb-1">Section eyebrow</label>
+                  <input
+                    type="text"
+                    value={draftConfig.craftsmanship.eyebrow}
+                    onChange={(event) => updateCraftsmanshipRoot({ eyebrow: event.target.value })}
+                    className="w-full border border-stone-300 p-2 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-stone-600 mb-1">Heading</label>
+                  <input
+                    type="text"
+                    value={draftConfig.craftsmanship.title}
+                    onChange={(event) => updateCraftsmanshipRoot({ title: event.target.value })}
+                    className="w-full border border-stone-300 p-2 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-stone-600 mb-1">Heading accent</label>
+                  <input
+                    type="text"
+                    value={draftConfig.craftsmanship.titleAccent}
+                    onChange={(event) => updateCraftsmanshipRoot({ titleAccent: event.target.value })}
+                    className="w-full border border-stone-300 p-2 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-stone-600 mb-1">Intro text</label>
+                  <textarea
+                    rows={2}
+                    value={draftConfig.craftsmanship.description}
+                    onChange={(event) => updateCraftsmanshipRoot({ description: event.target.value })}
+                    className="w-full border border-stone-300 p-2 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="border border-stone-200 p-4 space-y-3">
+                <label className="flex items-center gap-2 text-xs font-semibold text-stone-800">
+                  <input
+                    type="checkbox"
+                    checked={draftConfig.craftsmanship.tailoring.visible}
+                    onChange={(event) => updateCraftsmanshipCard('tailoring', { visible: event.target.checked })}
+                  />
+                  Show tailoring card
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <input aria-label="Tailoring card badge" value={draftConfig.craftsmanship.tailoring.badge} onChange={(event) => updateCraftsmanshipCard('tailoring', { badge: event.target.value })} className="w-full border border-stone-300 p-2 text-xs" />
+                  <input aria-label="Tailoring card metric" value={draftConfig.craftsmanship.tailoring.metric} onChange={(event) => updateCraftsmanshipCard('tailoring', { metric: event.target.value })} className="w-full border border-stone-300 p-2 text-xs" />
+                  <input aria-label="Tailoring card heading" value={draftConfig.craftsmanship.tailoring.title} onChange={(event) => updateCraftsmanshipCard('tailoring', { title: event.target.value })} className="w-full border border-stone-300 p-2 text-xs" />
+                  <input aria-label="Tailoring card heading accent" value={draftConfig.craftsmanship.tailoring.accent} onChange={(event) => updateCraftsmanshipCard('tailoring', { accent: event.target.value })} className="w-full border border-stone-300 p-2 text-xs" />
+                  <textarea aria-label="Tailoring card description" rows={3} value={draftConfig.craftsmanship.tailoring.description} onChange={(event) => updateCraftsmanshipCard('tailoring', { description: event.target.value })} className="w-full border border-stone-300 p-2 text-xs md:col-span-2" />
+                  <input aria-label="Tailoring benefit one" value={draftConfig.craftsmanship.tailoring.benefitOne} onChange={(event) => updateCraftsmanshipCard('tailoring', { benefitOne: event.target.value })} className="w-full border border-stone-300 p-2 text-xs" />
+                  <input aria-label="Tailoring benefit two" value={draftConfig.craftsmanship.tailoring.benefitTwo} onChange={(event) => updateCraftsmanshipCard('tailoring', { benefitTwo: event.target.value })} className="w-full border border-stone-300 p-2 text-xs" />
+                </div>
+              </div>
+
+              {(['summerFeature', 'winterFeature'] as const).map((key) => {
+                const feature = draftConfig.craftsmanship[key];
+                const title = key === 'summerFeature' ? 'Summer image card' : 'Winter image card';
+
+                return (
+                  <div key={key} className="border border-stone-200 p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <h4 className="text-xs font-semibold text-stone-900">{title}</h4>
+                      <label className="flex items-center gap-2 text-xs text-stone-700">
+                        <input
+                          type="checkbox"
+                          checked={feature.visible}
+                          onChange={(event) => updateCraftsmanshipCard(key, { visible: event.target.checked })}
+                        />
+                        Show card
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-[140px_1fr] gap-3">
+                      <div className="space-y-2">
+                        <img src={feature.image} alt={feature.imageAlt} className="w-full aspect-[4/3] object-cover border border-stone-200" />
+                        <label className="flex items-center justify-center gap-1.5 bg-stone-900 text-white text-[10px] uppercase tracking-wider px-3 py-2 cursor-pointer">
+                          <ImageUp className="w-3.5 h-3.5" /> Upload image
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              if (file) {
+                                handleUploadAsset(file, key);
+                              }
+                              event.target.value = '';
+                            }}
+                          />
+                        </label>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <input aria-label={`${title} image URL`} value={feature.image} onChange={(event) => updateCraftsmanshipCard(key, { image: event.target.value })} className="w-full border border-stone-300 p-2 text-xs font-mono sm:col-span-2" />
+                        <input aria-label={`${title} image description`} value={feature.imageAlt} onChange={(event) => updateCraftsmanshipCard(key, { imageAlt: event.target.value })} className="w-full border border-stone-300 p-2 text-xs sm:col-span-2" />
+                        <input aria-label={`${title} eyebrow`} value={feature.eyebrow} onChange={(event) => updateCraftsmanshipCard(key, { eyebrow: event.target.value })} className="w-full border border-stone-300 p-2 text-xs" />
+                        <input aria-label={`${title} heading`} value={feature.title} onChange={(event) => updateCraftsmanshipCard(key, { title: event.target.value })} className="w-full border border-stone-300 p-2 text-xs" />
+                        <textarea aria-label={`${title} description`} rows={3} value={feature.description} onChange={(event) => updateCraftsmanshipCard(key, { description: event.target.value })} className="w-full border border-stone-300 p-2 text-xs sm:col-span-2" />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              <div className="border border-stone-200 p-4 space-y-3">
+                <label className="flex items-center gap-2 text-xs font-semibold text-stone-800">
+                  <input
+                    type="checkbox"
+                    checked={draftConfig.craftsmanship.preview.visible}
+                    onChange={(event) => updateCraftsmanshipCard('preview', { visible: event.target.checked })}
+                  />
+                  Show video preview card
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <input aria-label="Preview card badge" value={draftConfig.craftsmanship.preview.badge} onChange={(event) => updateCraftsmanshipCard('preview', { badge: event.target.value })} className="w-full border border-stone-300 p-2 text-xs" />
+                  <input aria-label="Preview status text" value={draftConfig.craftsmanship.preview.status} onChange={(event) => updateCraftsmanshipCard('preview', { status: event.target.value })} className="w-full border border-stone-300 p-2 text-xs" />
+                  <input aria-label="Preview card heading" value={draftConfig.craftsmanship.preview.title} onChange={(event) => updateCraftsmanshipCard('preview', { title: event.target.value })} className="w-full border border-stone-300 p-2 text-xs" />
+                  <input aria-label="Preview card heading accent" value={draftConfig.craftsmanship.preview.accent} onChange={(event) => updateCraftsmanshipCard('preview', { accent: event.target.value })} className="w-full border border-stone-300 p-2 text-xs" />
+                  <textarea aria-label="Preview card description" rows={3} value={draftConfig.craftsmanship.preview.description} onChange={(event) => updateCraftsmanshipCard('preview', { description: event.target.value })} className="w-full border border-stone-300 p-2 text-xs md:col-span-2" />
+                  <input aria-label="Preview assurance text" value={draftConfig.craftsmanship.preview.assurance} onChange={(event) => updateCraftsmanshipCard('preview', { assurance: event.target.value })} className="w-full border border-stone-300 p-2 text-xs" />
+                  <input aria-label="Preview button text" value={draftConfig.craftsmanship.preview.buttonText} onChange={(event) => updateCraftsmanshipCard('preview', { buttonText: event.target.value })} className="w-full border border-stone-300 p-2 text-xs" />
+                </div>
+              </div>
+            </section>
+
+            <div className="pt-4 border-t border-stone-200 flex justify-end">
+              <button
+                onClick={handleSaveConfig}
+                className="bg-stone-900 hover:bg-stone-800 text-white text-xs uppercase tracking-wider px-6 py-2.5 font-medium cursor-pointer shadow-sm flex items-center gap-2"
+              >
+                <Save className="w-3.5 h-3.5 text-amber-300" />
+                Save Navigation & Section
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ================= 3. PRODUCTS & PRICES TAB ================= */}
         {activeTab === 'products' && (
           <div className="bg-white border border-stone-200 rounded-xs shadow-xs p-6 sm:p-8 space-y-6">
@@ -1147,18 +2032,47 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       return true;
                     })
                     .map((prod) => (
-                      <tr key={prod.id} className="hover:bg-stone-50/80 transition-colors">
+                      <tr
+                        key={prod.id}
+                        onDragEnter={() => setDropTargetProductId(prod.id)}
+                        onDragOver={(event) => event.preventDefault()}
+                        onDrop={() => handleProductDrop(prod.id)}
+                        className={`hover:bg-stone-50/80 transition-all cursor-pointer ${
+                          draggedProductId === prod.id ? 'opacity-50' : ''
+                        } ${dropTargetProductId === prod.id ? 'bg-amber-50 ring-1 ring-amber-200' : ''}`}
+                      >
                         <td className="p-3">
                           <div className="flex items-center gap-3">
-                            <img
-                              src={prod.primaryImage}
-                              alt={prod.name}
-                              className="w-12 h-14 object-cover rounded-2xs border border-stone-200 shrink-0"
-                            />
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                draggable
+                                onDragStart={() => handleProductDragStart(prod.id)}
+                                onDragEnd={() => {
+                                  setDraggedProductId(null);
+                                  setDropTargetProductId(null);
+                                }}
+                                className="flex items-center justify-center w-7 h-7 rounded-xs border border-stone-200 bg-stone-100 text-stone-500 cursor-grab active:cursor-grabbing"
+                                title="Drag to reorder product"
+                                aria-label={`Reorder ${prod.name}`}
+                              >
+                                <GripVertical className="w-3.5 h-3.5" />
+                              </button>
+                              <img
+                                src={prod.primaryImage}
+                                alt={prod.name}
+                                className="w-12 h-14 object-cover rounded-2xs border border-stone-200 shrink-0"
+                              />
+                            </div>
                             <div>
                               <p className="font-semibold text-stone-900 leading-tight">
                                 {prod.name}
                               </p>
+                              {dropTargetProductId === prod.id && draggedProductId && (
+                                <p className="text-[10px] text-amber-700 font-semibold uppercase tracking-[0.18em] mt-1">
+                                  Drop to reorder
+                                </p>
+                              )}
                               <p className="text-[10px] text-stone-400 font-mono mt-0.5">
                                 SKU: {prod.sku} · {prod.pieces}
                               </p>
@@ -1421,6 +2335,21 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           }
                           className="w-full border border-stone-300 p-2 font-mono"
                         />
+                        <label className="inline-flex items-center justify-center bg-stone-900 text-white text-[10px] uppercase tracking-wider px-3 py-2 rounded-xs cursor-pointer whitespace-nowrap">
+                          Crop & Upload
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              if (file) {
+                                handleUploadAsset(file, 'product');
+                              }
+                              event.target.value = '';
+                            }}
+                          />
+                        </label>
                       </div>
                       <div className="flex flex-wrap gap-2 pt-1">
                         <span className="text-[10px] text-stone-400 self-center">
@@ -2556,18 +3485,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 </label>
                 <div className="flex gap-2">
                   <input
-                    type="text"
-                    value={draftConfig.adminPasscode}
-                    onChange={(e) =>
-                      setDraftConfig({
-                        ...draftConfig,
-                        adminPasscode: e.target.value,
-                      })
-                    }
+                    type="password"
+                    minLength={8}
+                    value={newAdminPasscode}
+                    onChange={(e) => setNewAdminPasscode(e.target.value)}
+                    placeholder="Enter a new passcode (at least 8 characters)"
                     className="w-full border border-stone-300 p-2 font-mono"
                   />
                   <button
-                    onClick={handleSaveConfig}
+                    onClick={handleChangeAdminPasscode}
                     className="bg-stone-900 hover:bg-stone-800 text-white px-4 py-2 font-medium cursor-pointer shrink-0"
                   >
                     Update Passcode
@@ -2576,6 +3502,36 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 <p className="text-[11px] text-stone-400 mt-1">
                   Keep this passcode confidential. Only authorized atelier staff should have it.
                 </p>
+              </div>
+
+              <div className="p-4 bg-stone-50 border border-stone-200 rounded-xs space-y-3">
+                <div className="flex items-center gap-2 text-stone-900">
+                  <Database className="w-4 h-4 text-amber-700" />
+                  <span className="font-semibold text-sm">Direct data migration</span>
+                </div>
+                <p className="text-stone-600 text-[11px]">
+                  Export the live catalog as direct SQL for database migration or as Firebase-ready JSON for JSON-based CMS imports.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={handleExportSqlMigration}
+                    className="bg-stone-900 text-white text-[10px] uppercase tracking-wider px-3 py-2 font-medium rounded-xs cursor-pointer"
+                  >
+                    SQL Script
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportFirebaseMigration}
+                    className="bg-amber-700 text-white text-[10px] uppercase tracking-wider px-3 py-2 font-medium rounded-xs cursor-pointer"
+                  >
+                    Firebase JSON
+                  </button>
+                  <label className="bg-white border border-stone-300 text-stone-800 text-[10px] uppercase tracking-wider px-3 py-2 font-medium rounded-xs cursor-pointer">
+                    Import JSON
+                    <input type="file" accept="application/json" className="hidden" onChange={handleImportMigrationFile} />
+                  </label>
+                </div>
               </div>
 
               <div className="p-4 bg-red-50 border border-red-200 rounded-xs space-y-2 mt-6">
@@ -2592,6 +3548,110 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   <span>Reset All Site Config to Factory Defaults</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {cropEditor && (
+          <div className="fixed inset-0 z-60 bg-stone-950/80 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white border border-stone-300 max-w-2xl w-full rounded-xs shadow-2xl p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.25em] text-amber-800 font-semibold">Image crop & resize</p>
+                  <h3 className="text-xl font-serif text-stone-900 mt-1">Finalize media upload</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCropEditor(null)}
+                  className="text-stone-400 hover:text-stone-800 text-lg cursor-pointer"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-4">
+                <div className="relative border border-stone-200 rounded-xs p-2 bg-stone-50">
+                  <div className="relative w-full h-[360px] overflow-hidden rounded-xs bg-stone-200">
+                    <img
+                      src={cropEditor.source}
+                      alt="Crop preview"
+                      className="w-full h-full object-fill"
+                    />
+                    <div
+                      className="absolute border-2 border-amber-400 bg-amber-300/10 shadow-[0_0_0_999px_rgba(20,18,17,0.48)] pointer-events-none"
+                      style={{
+                        left: `${cropEditor.cropX}%`,
+                        top: `${cropEditor.cropY}%`,
+                        width: `${cropEditor.cropWidth}%`,
+                        height: `${cropEditor.cropHeight}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4 text-xs">
+                  <div className="flex items-center gap-2 text-stone-700">
+                    <Crop className="w-4 h-4 text-amber-700" />
+                    <span className="font-semibold uppercase tracking-[0.15em]">Crop settings</span>
+                  </div>
+
+                  {[
+                    { label: 'Horizontal crop', value: cropEditor.cropX, setValue: (value: number) => setCropEditor((current) => current ? { ...current, cropX: value } : current), min: 0, max: 100 - cropEditor.cropWidth },
+                    { label: 'Vertical crop', value: cropEditor.cropY, setValue: (value: number) => setCropEditor((current) => current ? { ...current, cropY: value } : current), min: 0, max: 100 - cropEditor.cropHeight },
+                    { label: 'Crop width', value: cropEditor.cropWidth, setValue: (value: number) => setCropEditor((current) => current ? { ...current, cropWidth: value, cropX: Math.min(current.cropX, 100 - value) } : current), min: 5, max: 100 - cropEditor.cropX },
+                    { label: 'Crop height', value: cropEditor.cropHeight, setValue: (value: number) => setCropEditor((current) => current ? { ...current, cropHeight: value, cropY: Math.min(current.cropY, 100 - value) } : current), min: 5, max: 100 - cropEditor.cropY },
+                  ].map((field) => (
+                    <div key={field.label}>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-stone-600">{field.label}</label>
+                        <span className="font-mono text-stone-500">{field.value}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={field.min}
+                        max={field.max}
+                        value={field.value}
+                        onChange={(e) => field.setValue(Number(e.target.value))}
+                        className="w-full accent-amber-700"
+                      />
+                    </div>
+                  ))}
+
+                  <div>
+                    <label className="block text-stone-600 mb-1">Output size</label>
+                    <select
+                      value={`${cropEditor.outputWidth}x${cropEditor.outputHeight}`}
+                      onChange={(e) => {
+                        const [width, height] = e.target.value.split('x').map(Number);
+                        setCropEditor((current) => current ? { ...current, outputWidth: width, outputHeight: height } : current);
+                      }}
+                      className="w-full border border-stone-300 p-2 text-stone-800"
+                    >
+                      <option value="1200x1200">Square 1200 × 1200</option>
+                      <option value="1600x1200">Landscape 1600 × 1200</option>
+                      <option value="1200x1600">Portrait 1200 × 1600</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2 border-t border-stone-200">
+                <button
+                  type="button"
+                  onClick={() => setCropEditor(null)}
+                  className="px-4 py-2 border border-stone-300 text-stone-700 hover:bg-stone-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={applyCropToImage}
+                  className="px-5 py-2 bg-amber-700 hover:bg-amber-600 text-white font-medium cursor-pointer flex items-center gap-2"
+                >
+                  <SlidersHorizontal className="w-4 h-4" />
+                  Apply & Upload
                 </button>
               </div>
             </div>

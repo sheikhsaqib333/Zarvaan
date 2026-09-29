@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Ruler, CheckCircle2, Info, Sparkles } from 'lucide-react';
+import { replaceBrandName, useBrandName } from '../context/BrandNameContext';
 
 interface FabricCalculatorModalProps {
   isOpen: boolean;
@@ -10,6 +11,8 @@ export const FabricCalculatorModal: React.FC<FabricCalculatorModalProps> = ({
   isOpen,
   onClose,
 }) => {
+  const brandName = useBrandName();
+  const displayBrand = (text: string) => replaceBrandName(text, brandName);
   const [silhouette, setSilhouette] = useState<'straight' | 'aline' | 'kalidaar' | 'angrakha' | 'short_kurti'>('straight');
   const [heightFt, setHeightFt] = useState<number>(5);
   const [heightIn, setHeightIn] = useState<number>(5);
@@ -65,7 +68,7 @@ export const FabricCalculatorModal: React.FC<FabricCalculatorModalProps> = ({
           Unstitched Yardage & Silhouette Calculator
         </h2>
         <p className="text-xs sm:text-sm text-stone-600 mt-1">
-          Verify how Zavraan's generous unstitched fabric cuts fit your desired silhouette and body measurements.
+          {displayBrand("Verify how Zavraan's generous unstitched fabric cuts fit your desired silhouette and body measurements.")}
         </p>
 
         {/* Inputs Grid */}
@@ -168,7 +171,7 @@ export const FabricCalculatorModal: React.FC<FabricCalculatorModalProps> = ({
               </div>
               <p className="text-stone-600 mt-1">
                 {isShirtSufficient
-                  ? `Standard Zavraan 3.10M cut has ample fabric for this silhouette including full sleeves and hem turnings.`
+                  ? displayBrand(`Standard Zavraan 3.10M cut has ample fabric for this silhouette including full sleeves and hem turnings.`)
                   : `For a full multi-paneled kalidaar, standard 3.10M allows a medium flare. Contact bespoke concierge if requesting extra flair.`}
               </p>
             </div>

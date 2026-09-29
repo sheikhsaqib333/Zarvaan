@@ -1,14 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Season, Product } from '../types/clothing';
-import { HomeScreenConfig } from '../types/siteConfig';
-import {
-  HERO_IMAGE,
-  SUMMER_LAWN_IMAGE,
-  LAWN_PRINTS_IMAGE,
-  DHANAK_KHADDAR_IMAGE,
-  VELVET_CRAFT_IMAGE,
-  EDITORIAL_MODEL_IMAGE,
-} from '../data/products';
+import { HomeScreenConfig, HeroSlideConfig } from '../types/siteConfig';
+import { buildDefaultHeroSlides } from '../utils/heroSlides';
+import { replaceBrandName, useBrandName } from '../context/BrandNameContext';
 import {
   ArrowRight,
   ArrowUpRight,
@@ -22,74 +16,6 @@ import {
   Video,
   Flame,
 } from 'lucide-react';
-
-export interface HeroSlide {
-  id: string;
-  image: string;
-  category: string;
-  season: Season;
-  caption: string;
-  dropTag?: string;
-}
-
-const DEFAULT_SLIDES: HeroSlide[] = [
-  {
-    id: 'slide-lawn-prints',
-    image: LAWN_PRINTS_IMAGE,
-    category: 'Lawn Printed Suits',
-    season: 'summer',
-    caption: 'Airy 80s combed digital lawn with fluid featherlight chiffon dupatta.',
-    dropTag: 'DROP 01 · SUMMER',
-  },
-  {
-    id: 'slide-lawn-replica',
-    image: EDITORIAL_MODEL_IMAGE,
-    category: 'Lawn Replica',
-    season: 'summer',
-    caption: 'Master replica couture featuring luxury schiffli organza embroidery cutwork.',
-    dropTag: 'COUTURE REPLICA',
-  },
-  {
-    id: 'slide-lawn-embroidery',
-    image: SUMMER_LAWN_IMAGE,
-    category: 'Lawn Embroidery Suits',
-    season: 'summer',
-    caption: 'Breathable summer lawn enriched with delicate multi-color thread needlework.',
-    dropTag: 'LUXE EMBROIDERY',
-  },
-  {
-    id: 'slide-cotton-plain',
-    image: HERO_IMAGE,
-    category: 'Cotton Plain Fabric',
-    season: 'summer',
-    caption: '100% fine Egyptian combed cotton unstitched yardage with crisp hand-feel.',
-    dropTag: 'PURE SOLID BASICS',
-  },
-  {
-    id: 'slide-khaddar-printed',
-    image: DHANAK_KHADDAR_IMAGE,
-    category: 'Khaddar Unstitch Printed Suit',
-    season: 'winter',
-    caption: 'Heavy slub textured khaddar crafted for cozy winter warmth and structured drape.',
-    dropTag: 'WINTER TEXTURE',
-  },
-  {
-    id: 'slide-dhanak-printed',
-    image: '/src/assets/images/zavraan_winter_shawl_1790586750219.jpg',
-    category: 'Dhanak Unstitch Printed Suits',
-    season: 'winter',
-    caption: 'Double-brushed winter dhanak suit decorated with rich Kashmiri ethnic motifs.',
-    dropTag: 'WARMTH VAULT',
-  },
-  {
-    id: 'slide-khaddar-embroidery',
-    image: VELVET_CRAFT_IMAGE,
-    category: 'Khaddar Embroidery',
-    season: 'winter',
-    caption: 'Royal winter khaddar enriched with antique tilla and resham threadwork.',
-    dropTag: 'FESTIVE THREADS',
-  },
-];
 
 interface HeroProps {
   onSelectSeason: (season: Season | 'all') => void;
@@ -109,67 +35,49 @@ export const Hero: React.FC<HeroProps> = ({
   homeConfig,
   products = [],
 }) => {
-  const badge = homeConfig?.announcementBadge || 'SS’26 ARCHIVE · 100% RAW YARDAGE ATELIER';
-  const headline1 = homeConfig?.headlinePart1 || 'Unstitched Couture.';
-  const headline2 = homeConfig?.headlinePart2 || 'Zero Sizing Limits.';
-  const subheadline =
+  const brandName = useBrandName();
+  const displayBrand = (value: string) => replaceBrandName(value, brandName);
+  const badge = displayBrand(homeConfig?.announcementBadge || 'SS’26 ARCHIVE · 100% RAW YARDAGE ATELIER');
+  const headline1 = displayBrand(homeConfig?.headlinePart1 || 'Unstitched Couture.');
+  const headline2 = displayBrand(homeConfig?.headlinePart2 || 'Zero Sizing Limits.');
+  const subheadline = displayBrand(
     homeConfig?.subheadline ||
-    'Why settle for stiff, ill-fitting pre-stitched racks? Zavraan curates 100% pure raw yardage — from airy combed Swiss lawns & designer replicas to cozy slub khaddar & plush dhanak. Tailor the drape to your exact silhouette.';
-  const primaryBtn = homeConfig?.primaryButtonText || 'Explore Drops';
-  const secondaryBtn = homeConfig?.secondaryButtonText || 'Book Live Video Preview';
-  const notice =
-    homeConfig?.previewNotice ||
-    'Preview fabrics over live 1-on-1 video call before placing your order.';
+      'Why settle for stiff, ill-fitting pre-stitched racks? Zavraan curates 100% pure raw yardage — from airy combed Swiss lawns & designer replicas to cozy slub khaddar & plush dhanak. Tailor the drape to your exact silhouette.'
+  );
+  const primaryBtn = displayBrand(homeConfig?.primaryButtonText || 'Explore Drops');
+  const secondaryBtn = displayBrand(homeConfig?.secondaryButtonText || 'Book Live Video Preview');
+  const notice = displayBrand(
+    homeConfig?.previewNotice || 'Preview fabrics over live 1-on-1 video call before placing your order.'
+  );
   const s1Val = homeConfig?.stat1Value || '8.10M+';
-  const s1Lbl = homeConfig?.stat1Label || 'Generous Cut';
+  const s1Lbl = displayBrand(homeConfig?.stat1Label || 'Generous Cut');
   const s2Val = homeConfig?.stat2Value || '100%';
-  const s2Lbl = homeConfig?.stat2Label || 'Pure Ladies Unstitched';
+  const s2Lbl = displayBrand(homeConfig?.stat2Label || 'Pure Ladies Unstitched');
   const s3Val = homeConfig?.stat3Value || 'COD & Wallets';
-  const s3Lbl = homeConfig?.stat3Label || 'Direct Checkout';
+  const s3Lbl = displayBrand(homeConfig?.stat3Label || 'Direct Checkout');
 
   // Build dynamic slide list including products with distinct categories
-  const slides = React.useMemo<HeroSlide[]>(() => {
-    if (!products || products.length === 0) {
-      return DEFAULT_SLIDES;
-    }
-
-    const categoryCaptionMap: Record<string, string> = {
-      'Lawn Printed Suits': 'Airy 80s combed digital lawn with fluid featherlight chiffon dupatta.',
-      'Lawn Replica': 'Master replica couture featuring luxury schiffli organza embroidery cutwork.',
-      'Lawn Embroidery Suits': 'Breathable summer lawn enriched with delicate thread needlework.',
-      'Lawn Plain Fabric': 'Airjet-woven combed swiss lawn unstitched fabric in solid pastels.',
-      'Cotton Plain Fabric': '100% fine Egyptian combed cotton unstitched yardage with crisp hand-feel.',
-      'Cotton Embroidery': 'Fine cotton cambric suit with detailed daman borders and neckline patches.',
-      'Khaddar Unstitch Printed Suit': 'Heavy slub textured khaddar crafted for cozy winter warmth.',
-      'Dhanak Unstitch Printed Suits': 'Double-brushed winter dhanak suit decorated with rich Kashmiri motifs.',
-      'Khaddar Embroidery': 'Royal winter khaddar enriched with antique tilla and resham threadwork.',
-      'Dhanak Embroidery': 'Regal winter dhanak featuring metallic zari and embroidered velvet trims.',
-    };
-
-    const productSlides: HeroSlide[] = products
-      .filter((p) => p.primaryImage)
-      .slice(0, 8)
-      .map((p) => ({
-        id: `slide-prod-${p.id}`,
-        image: p.primaryImage,
-        category: p.category,
-        season: p.season,
-        caption:
-          categoryCaptionMap[p.category] ||
-          (p.description.length > 75 ? p.description.slice(0, 75) + '...' : p.description),
-        dropTag: p.season === 'summer' ? 'SUMMER DROP' : 'WINTER VAULT',
-      }));
-
-    const covered = new Set(productSlides.map((s) => s.category));
-    const supplemental = DEFAULT_SLIDES.filter((s) => !covered.has(s.category));
-
-    return [...productSlides, ...supplemental].slice(0, 7);
-  }, [products]);
+  const slides = React.useMemo<HeroSlideConfig[]>(
+    () =>
+      (homeConfig?.heroSlides?.length
+        ? homeConfig.heroSlides
+        : buildDefaultHeroSlides(products, homeConfig?.heroImage)).map((slide) => ({
+          ...slide,
+          category: displayBrand(slide.category),
+          caption: displayBrand(slide.caption),
+          dropTag: slide.dropTag ? displayBrand(slide.dropTag) : undefined,
+        })),
+    [products, homeConfig?.heroImage, homeConfig?.heroSlides, brandName]
+  );
 
   // Slideshow State
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    setCurrentSlideIndex((current) => Math.min(current, slides.length - 1));
+  }, [slides.length]);
 
   // Auto-advance slideshow with smooth interval
   useEffect(() => {

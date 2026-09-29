@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Season } from '../types/clothing';
 import { FooterConfig, CategoriesConfig } from '../types/siteConfig';
 import { Check, Mail, Phone, MapPin, Calendar, Instagram } from 'lucide-react';
+import { replaceBrandName, useBrandName } from '../context/BrandNameContext';
 
 interface FooterProps {
   onSelectSeason: (season: Season | 'all') => void;
@@ -19,6 +20,7 @@ export const Footer: React.FC<FooterProps> = ({
   footerConfig,
   categoriesConfig,
 }) => {
+  const brandName = useBrandName();
   const [newsletterEmail, setNewsletterEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
 
@@ -38,14 +40,17 @@ export const Footer: React.FC<FooterProps> = ({
     window.open(target, '_blank', 'noopener,noreferrer');
   };
 
-  const bio =
+  const bio = replaceBrandName(
     footerConfig?.brandBio ||
-    'Haute ladies unstitched atelier celebrating authentic Pakistani combed lawn, designer replicas, heavy schiffli embroideries, slub khaddar, and cozy dhanak fabrics.';
+      'Haute ladies unstitched atelier celebrating authentic Pakistani combed lawn, designer replicas, heavy schiffli embroideries, slub khaddar, and cozy dhanak fabrics.',
+    brandName
+  );
   const address =
     footerConfig?.studioAddress || 'Plot 14-C, Gulberg III, Lahore, Pakistan';
-  const copyright =
-    footerConfig?.copyrightText ||
-    'Zavraan Ladies Unstitched Haute Couture. All rights reserved.';
+  const copyright = replaceBrandName(
+    footerConfig?.copyrightText || 'Zavraan Ladies Unstitched Haute Couture. All rights reserved.',
+    brandName
+  );
   const notice =
     footerConfig?.noticeBanner ||
     'Online Digital Wallets & Offline COD · Studio Fabric Preview Appointments · Made in Pakistan';
@@ -73,7 +78,7 @@ export const Footer: React.FC<FooterProps> = ({
           {/* Brand Manifesto */}
           <div className="lg:col-span-2 space-y-4">
             <h3 className="text-2xl font-serif tracking-[0.2em] font-medium text-white">
-              ZAVRAAN
+              {brandName.toUpperCase()}
             </h3>
             <p className="text-stone-400 text-xs sm:text-sm max-w-sm leading-relaxed font-light">
               {bio}
@@ -103,7 +108,7 @@ export const Footer: React.FC<FooterProps> = ({
                   onClick={handleOpenInstagram}
                   className="text-stone-300 hover:text-white underline cursor-pointer text-left"
                 >
-                  Follow Zavraan on Instagram
+                  Follow {brandName} on Instagram
                 </button>
               </p>
             </div>
@@ -112,7 +117,7 @@ export const Footer: React.FC<FooterProps> = ({
           {/* Summer Unstitched Categories */}
           <div className="space-y-3">
             <h4 className="text-white text-xs uppercase tracking-widest font-semibold">
-              {categoriesConfig?.summerCollectionTitle || 'Summer Unstitched'}
+              {replaceBrandName(categoriesConfig?.summerCollectionTitle || 'Summer Unstitched', brandName)}
             </h4>
             <ul className="space-y-2 text-stone-400">
               {summerCategories.map((cat) => (
@@ -121,7 +126,7 @@ export const Footer: React.FC<FooterProps> = ({
                     onClick={() => onSelectSeason('summer')}
                     className="hover:text-amber-300 transition-colors cursor-pointer text-left"
                   >
-                    {cat}
+                    {replaceBrandName(cat, brandName)}
                   </button>
                 </li>
               ))}
@@ -131,7 +136,7 @@ export const Footer: React.FC<FooterProps> = ({
           {/* Winter Unstitched Categories & Services */}
           <div className="space-y-3">
             <h4 className="text-white text-xs uppercase tracking-widest font-semibold">
-              {categoriesConfig?.winterCollectionTitle || 'Winter Unstitched'}
+              {replaceBrandName(categoriesConfig?.winterCollectionTitle || 'Winter Unstitched', brandName)}
             </h4>
             <ul className="space-y-2 text-stone-400">
               {winterCategories.map((cat) => (
@@ -140,7 +145,7 @@ export const Footer: React.FC<FooterProps> = ({
                     onClick={() => onSelectSeason('winter')}
                     className="hover:text-amber-300 transition-colors cursor-pointer text-left"
                   >
-                    {cat}
+                    {replaceBrandName(cat, brandName)}
                   </button>
                 </li>
               ))}
@@ -167,7 +172,7 @@ export const Footer: React.FC<FooterProps> = ({
             {subscribed ? (
               <div className="p-2.5 bg-stone-900 border border-amber-900/60 text-amber-300 flex items-center gap-2">
                 <Check className="w-4 h-4" />
-                <span>You are subscribed to the Zavraan registry.</span>
+                <span>You are subscribed to the {brandName} registry.</span>
               </div>
             ) : (
               <form onSubmit={handleSubscribe} className="space-y-2">

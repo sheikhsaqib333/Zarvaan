@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Product, Currency, StandardSize, CustomMeasurements, StitchingOption, ProductReview } from '../types/clothing';
 import { ReviewSystem } from './ReviewSystem';
 import { X, Check, Ruler, Scissors, Shield, Heart, ShoppingCart, ZoomIn, Calendar, Star } from 'lucide-react';
+import { replaceBrandName, useBrandName } from '../context/BrandNameContext';
 
 interface ProductDetailModalProps {
   product: Product | null;
@@ -35,6 +36,8 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   reviews,
   onAddReview,
 }) => {
+  const brandName = useBrandName();
+  const displayBrand = (text: string) => replaceBrandName(text, brandName);
   const [activeImageTab, setActiveImageTab] = useState<'primary' | 'secondary' | 'macro'>('primary');
   const [stitchingOption, setStitchingOption] = useState<StitchingOption>('unstitched');
   const [selectedSize, setSelectedSize] = useState<StandardSize>('M');
@@ -98,7 +101,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               <div className="relative aspect-3/4 overflow-hidden rounded-xs bg-white border border-stone-200 group">
                 <img
                   src={currentDisplayImage}
-                  alt={product.name}
+                  alt={displayBrand(product.name)}
                   className="w-full h-full object-cover object-center transition-all duration-300"
                   referrerPolicy="no-referrer"
                 />
@@ -164,7 +167,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               {/* Category & Rating Bar */}
               <div className="flex items-center justify-between text-xs text-stone-500 font-medium mb-1">
                 <span className="text-amber-900 font-semibold uppercase tracking-wider">
-                  {product.season === 'summer' ? 'Summer Collection' : 'Winter Collection'} · {product.category}
+                  {product.season === 'summer' ? 'Summer Collection' : 'Winter Collection'} · {displayBrand(product.category)}
                 </span>
 
                 <div className="flex items-center gap-2">
@@ -188,7 +191,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
               {/* Title */}
               <h2 className="text-2xl sm:text-3xl font-serif text-stone-900 font-normal leading-tight">
-                {product.name}
+                {displayBrand(product.name)}
               </h2>
 
               {/* Price */}
@@ -205,7 +208,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
               {/* Description */}
               <p className="mt-3 text-xs sm:text-sm text-stone-600 leading-relaxed font-light">
-                {product.description}
+                {displayBrand(product.description)}
               </p>
 
               {/* Interactive Stitching Selector */}

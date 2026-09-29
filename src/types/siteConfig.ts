@@ -1,3 +1,15 @@
+import type { Season } from './clothing';
+import { DHANAK_KHADDAR_IMAGE, LAWN_PRINTS_IMAGE } from '../data/products';
+
+export interface HeroSlideConfig {
+  id: string;
+  image: string;
+  category: string;
+  season: Season;
+  caption: string;
+  dropTag?: string;
+}
+
 export interface HomeScreenConfig {
   announcementBadge: string;
   headlinePart1: string;
@@ -13,6 +25,7 @@ export interface HomeScreenConfig {
   stat3Value: string;
   stat3Label: string;
   heroImage?: string;
+  heroSlides?: HeroSlideConfig[];
 }
 
 export interface CategoriesConfig {
@@ -22,6 +35,62 @@ export interface CategoriesConfig {
   winterCollectionTitle: string;
   winterCollectionSubtitle: string;
   winterCategories: string[];
+}
+
+export interface NavigationLinkConfig {
+  visible: boolean;
+  label: string;
+}
+
+export interface NavigationConfig {
+  allDrops: NavigationLinkConfig;
+  summer: NavigationLinkConfig;
+  winter: NavigationLinkConfig;
+  preview: NavigationLinkConfig;
+}
+
+export interface CraftsmanshipConfig {
+  visible: boolean;
+  eyebrow: string;
+  title: string;
+  titleAccent: string;
+  description: string;
+  tailoring: {
+    visible: boolean;
+    badge: string;
+    metric: string;
+    title: string;
+    accent: string;
+    description: string;
+    benefitOne: string;
+    benefitTwo: string;
+  };
+  summerFeature: {
+    visible: boolean;
+    image: string;
+    imageAlt: string;
+    eyebrow: string;
+    title: string;
+    description: string;
+  };
+  winterFeature: {
+    visible: boolean;
+    image: string;
+    imageAlt: string;
+    eyebrow: string;
+    title: string;
+    description: string;
+  };
+  preview: {
+    visible: boolean;
+    badge: string;
+    status: string;
+    title: string;
+    accent: string;
+    description: string;
+    assurance: string;
+    buttonText: string;
+  };
 }
 
 export interface PaymentMethodsConfig {
@@ -85,15 +154,18 @@ export interface FooterConfig {
 }
 
 export interface SiteConfig {
+  brandName: string;
   homeScreen: HomeScreenConfig;
   categories: CategoriesConfig;
+  navigation: NavigationConfig;
+  craftsmanship: CraftsmanshipConfig;
   paymentMethods: PaymentMethodsConfig;
   social: SocialConfig;
   footer: FooterConfig;
-  adminPasscode: string;
 }
 
 export const DEFAULT_SITE_CONFIG: SiteConfig = {
+  brandName: 'Zavraan',
   homeScreen: {
     announcementBadge: 'Haute Ladies Unstitched Atelier · Pure Raw Yardage',
     headlinePart1: 'The Art of Pure',
@@ -132,6 +204,60 @@ export const DEFAULT_SITE_CONFIG: SiteConfig = {
       'Khaddar Embroidery',
       'Dhanak Embroidery',
     ],
+  },
+  navigation: {
+    allDrops: { visible: true, label: 'All Drops' },
+    summer: { visible: true, label: 'Summer Lawn & Cotton' },
+    winter: { visible: true, label: 'Winter Khaddar & Dhanak' },
+    preview: { visible: true, label: 'Live Video Preview' },
+  },
+  craftsmanship: {
+    visible: true,
+    eyebrow: 'The Raw Yardage Advantage // Drop 2026',
+    title: 'Why Gen-Z Chooses Raw Fabric',
+    titleAccent: 'Over Fast Fashion.',
+    description:
+      'Standard ready-made clothes force you into generic S/M/L cuts that compromise on sleeve length, flare, and neckline. Pure unstitched yardage gives you full creative agency to tailor your fit.',
+    tailoring: {
+      visible: true,
+      badge: '01 // Total Silhouette Freedom',
+      metric: '8.10M Cut',
+      title: 'No Pre-Stitched Compromises.',
+      accent: 'Cut It Oversized, Straight, or Flared.',
+      description:
+        'Every Zavraan unstitched suit comes with a generous raw cut: 3.10M+ shirt fabric, 2.50M trouser yardage, and a 2.50M dupatta. Whether you want deep drop-shoulder sleeves, breezy kalidar panels, or minimal cigarette cuts, your tailor never runs short of fabric.',
+      benefitOne: '3.10M+ Generous Shirt Cut',
+      benefitTwo: 'Zero Sizing Chart Drama',
+    },
+    summerFeature: {
+      visible: true,
+      image: LAWN_PRINTS_IMAGE,
+      imageAlt: 'Airjet combed summer lawn fabric weave',
+      eyebrow: 'SUMMER VAULT · 80s WEAVE',
+      title: 'Airjet Combed Swiss Lawn',
+      description:
+        'Super breathable long-staple cotton woven on precision airjet looms. Featherlight drape, high-definition botanical prints, and zero color bleeding.',
+    },
+    winterFeature: {
+      visible: true,
+      image: DHANAK_KHADDAR_IMAGE,
+      imageAlt: 'Double brushed winter dhanak and heavy slub khaddar',
+      eyebrow: 'WINTER EDIT · COZY HEAVY YARNS',
+      title: 'Slub Khaddar & Brushed Dhanak',
+      description:
+        'Heavy textured slub weaves and peach-brushed surfaces engineered for natural cold-weather insulation without feeling stiff or itchy.',
+    },
+    preview: {
+      visible: true,
+      badge: '02 // Authentic Transparency',
+      status: 'Live Preview Available',
+      title: 'No Blind Orders.',
+      accent: 'Inspect the Raw Weave on Video.',
+      description:
+        'We believe in zero filter gimmicks. Book a free 5-minute video call with our fabric masters to examine the drape, inspect resham embroidery under daylight, or check the thickness of the chiffon dupatta before paying.',
+      assurance: '100% Colorfast Reactive Dyes Tested',
+      buttonText: 'Book Free Video Preview',
+    },
   },
   paymentMethods: {
     cod: {
@@ -192,5 +318,62 @@ export const DEFAULT_SITE_CONFIG: SiteConfig = {
     copyrightText: 'Zavraan Ladies Unstitched Haute Couture. All rights reserved.',
     noticeBanner: 'Online Digital Wallets & Offline COD · Studio Fabric Preview Appointments · Made in Pakistan',
   },
-  adminPasscode: 'zavraan@admin2026',
 };
+
+export const mergeSiteConfig = (config: Partial<SiteConfig>): SiteConfig => ({
+  ...DEFAULT_SITE_CONFIG,
+  ...config,
+  brandName: config.brandName?.trim() || DEFAULT_SITE_CONFIG.brandName,
+  homeScreen: { ...DEFAULT_SITE_CONFIG.homeScreen, ...config.homeScreen },
+  categories: { ...DEFAULT_SITE_CONFIG.categories, ...config.categories },
+  navigation: {
+    ...DEFAULT_SITE_CONFIG.navigation,
+    ...config.navigation,
+    allDrops: { ...DEFAULT_SITE_CONFIG.navigation.allDrops, ...config.navigation?.allDrops },
+    summer: { ...DEFAULT_SITE_CONFIG.navigation.summer, ...config.navigation?.summer },
+    winter: { ...DEFAULT_SITE_CONFIG.navigation.winter, ...config.navigation?.winter },
+    preview: { ...DEFAULT_SITE_CONFIG.navigation.preview, ...config.navigation?.preview },
+  },
+  craftsmanship: {
+    ...DEFAULT_SITE_CONFIG.craftsmanship,
+    ...config.craftsmanship,
+    tailoring: {
+      ...DEFAULT_SITE_CONFIG.craftsmanship.tailoring,
+      ...config.craftsmanship?.tailoring,
+    },
+    summerFeature: {
+      ...DEFAULT_SITE_CONFIG.craftsmanship.summerFeature,
+      ...config.craftsmanship?.summerFeature,
+    },
+    winterFeature: {
+      ...DEFAULT_SITE_CONFIG.craftsmanship.winterFeature,
+      ...config.craftsmanship?.winterFeature,
+    },
+    preview: {
+      ...DEFAULT_SITE_CONFIG.craftsmanship.preview,
+      ...config.craftsmanship?.preview,
+    },
+  },
+  paymentMethods: {
+    ...DEFAULT_SITE_CONFIG.paymentMethods,
+    ...config.paymentMethods,
+    cod: { ...DEFAULT_SITE_CONFIG.paymentMethods.cod, ...config.paymentMethods?.cod },
+    pay_at_studio: {
+      ...DEFAULT_SITE_CONFIG.paymentMethods.pay_at_studio,
+      ...config.paymentMethods?.pay_at_studio,
+    },
+    bank_transfer: {
+      ...DEFAULT_SITE_CONFIG.paymentMethods.bank_transfer,
+      ...config.paymentMethods?.bank_transfer,
+    },
+    jazzcash: { ...DEFAULT_SITE_CONFIG.paymentMethods.jazzcash, ...config.paymentMethods?.jazzcash },
+    easypaisa: { ...DEFAULT_SITE_CONFIG.paymentMethods.easypaisa, ...config.paymentMethods?.easypaisa },
+    nayapay_sadapay: {
+      ...DEFAULT_SITE_CONFIG.paymentMethods.nayapay_sadapay,
+      ...config.paymentMethods?.nayapay_sadapay,
+    },
+    card: { ...DEFAULT_SITE_CONFIG.paymentMethods.card, ...config.paymentMethods?.card },
+  },
+  social: { ...DEFAULT_SITE_CONFIG.social, ...config.social },
+  footer: { ...DEFAULT_SITE_CONFIG.footer, ...config.footer },
+});

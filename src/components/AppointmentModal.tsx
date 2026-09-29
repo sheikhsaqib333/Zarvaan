@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Product, PreviewAppointment, Currency } from '../types/clothing';
 import { PaymentMethodsConfig } from '../types/siteConfig';
+import { replaceBrandName, useBrandName } from '../context/BrandNameContext';
 import {
   X,
   Calendar,
@@ -46,6 +47,8 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
   paymentConfig,
   currency = 'PKR',
 }) => {
+  const brandName = useBrandName();
+  const displayBrand = (text: string) => replaceBrandName(text, brandName);
   const [appointmentType, setAppointmentType] = useState<AppointmentType>('in_person_atelier');
   const [customerName, setCustomerName] = useState('');
   const [phone, setPhone] = useState('');
@@ -92,18 +95,18 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
   // Store's official receiver accounts (from admin siteConfig or verified defaults)
   const storeBank = {
     bankName: paymentConfig?.bank_transfer?.bankName || 'Meezan Bank Ltd (Official Atelier Account)',
-    accountTitle: paymentConfig?.bank_transfer?.accountTitle || 'Zavraan Luxury Textiles',
+    accountTitle: displayBrand(paymentConfig?.bank_transfer?.accountTitle || 'Zavraan Luxury Textiles'),
     iban: paymentConfig?.bank_transfer?.iban || 'PK62MEZN0001040105829101',
   };
 
   const storeEasypaisa = {
     accountNumber: paymentConfig?.easypaisa?.accountNumber || '0345-8472911',
-    accountTitle: paymentConfig?.easypaisa?.accountTitle || 'Zavraan Fabrics',
+    accountTitle: displayBrand(paymentConfig?.easypaisa?.accountTitle || 'Zavraan Fabrics'),
   };
 
   const storeJazzcash = {
     accountNumber: paymentConfig?.jazzcash?.accountNumber || '0300-8472911',
-    accountTitle: paymentConfig?.jazzcash?.accountTitle || 'Zavraan Fabrics',
+    accountTitle: displayBrand(paymentConfig?.jazzcash?.accountTitle || 'Zavraan Fabrics'),
   };
 
   const handleCopy = (text: string, label: string) => {
@@ -156,7 +159,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
 
       if (!hasAcknowledgedPayment) {
         setValidationError(
-          'Please confirm that you have transferred the Rs. 1,500 atelier deposit to Zavraan’s account.'
+          displayBrand('Please confirm that you have transferred the Rs. 1,500 atelier deposit to Zavraan’s account.')
         );
         return;
       }
@@ -168,7 +171,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
       setTimeout(() => {
         setVerificationStep(
           paymentChannel === 'bank_transfer'
-            ? `Reconciling ${senderBankName} IBFT transaction with Zavraan Meezan Bank account...`
+            ? displayBrand(`Reconciling ${senderBankName} IBFT transaction with Zavraan Meezan Bank account...`)
             : `Validating ${paymentChannel === 'easypaisa' ? 'Easypaisa' : 'JazzCash'} TRX ID with ledger...`
         );
       }, 500);
@@ -396,7 +399,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
                         key={i}
                         className="bg-stone-100 border border-stone-200 text-stone-800 text-[11px] px-2.5 py-1 rounded-md"
                       >
-                        {name}
+                        {displayBrand(name)}
                       </span>
                     ))}
                   </div>
@@ -412,7 +415,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
                 {bookedConfirmation.appointmentType === 'in_person_atelier' ? (
                   <>
                     <strong className="text-stone-900 block">Studio Location:</strong>
-                    <span>Zavraan Atelier, Plot 14-C, Gulberg III, Lahore, Pakistan.</span>
+                    <span>{displayBrand('Zavraan Atelier, Plot 14-C, Gulberg III, Lahore, Pakistan.')}</span>
                     <span className="block text-stone-500 text-[10px]">
                       Complimentary high-tea & dedicated fabric master will be ready for you.
                     </span>
@@ -690,7 +693,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
                         <span>Step 3 · Secure Atelier Deposit</span>
                       </div>
                       <h3 className="text-base sm:text-lg font-bold text-stone-950">
-                        Pay {displayFee} from Your Account to Zavraan
+                        {displayBrand(`Pay ${displayFee} from Your Account to Zavraan`)}
                       </h3>
                       <p className="text-[11px] text-stone-600">
                         Transfer the reservation deposit via Bank, Easypaisa, or JazzCash to confirm
@@ -753,7 +756,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
                   {/* Official Receiver Account Display */}
                   <div className="bg-[#FAF8F5] border border-stone-200 rounded-2xl p-4 space-y-3">
                     <span className="text-[10px] uppercase font-mono tracking-widest text-stone-600 block font-bold">
-                      Zavraan Atelier Receiver Account:
+                      {displayBrand('Zavraan Atelier Receiver Account:')}
                     </span>
 
                     {paymentChannel === 'bank_transfer' && (
@@ -990,7 +993,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
                       />
                       <span className="text-[11px] text-stone-800 leading-snug">
                         I confirm that <strong>{displayFee}</strong> has been transferred from my{' '}
-                        {paymentChannel.replace('_', ' ')} account to Zavraan’s account, and I have
+                        {displayBrand(`${paymentChannel.replace('_', ' ')} account to Zavraan’s account, and I have`)}
                         entered the authentic Transaction ID above.
                       </span>
                     </label>

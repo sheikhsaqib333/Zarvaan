@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { MessageCircle, X, Send, Sparkles } from 'lucide-react';
+import { replaceBrandName, useBrandName } from '../context/BrandNameContext';
 
 interface WhatsAppFloatingButtonProps {
   whatsappNumber: string;
@@ -12,6 +13,8 @@ export const WhatsAppFloatingButton: React.FC<WhatsAppFloatingButtonProps> = ({
   defaultMessage = 'Hello Zavraan Atelier! I am inquiring about your ladies unstitched collection (Lawn / Khaddar / Dhanak).',
   onOpenAdmin,
 }) => {
+  const brandName = useBrandName();
+  const displayBrand = (text: string) => replaceBrandName(text, brandName);
   const [isOpen, setIsOpen] = useState(false);
   const [customText, setCustomText] = useState('');
 
@@ -19,7 +22,7 @@ export const WhatsAppFloatingButton: React.FC<WhatsAppFloatingButtonProps> = ({
   const cleanNumber = whatsappNumber.replace(/[^0-9]/g, '');
 
   const handleOpenWhatsApp = (text?: string) => {
-    const messageToSend = text || defaultMessage;
+    const messageToSend = displayBrand(text || defaultMessage);
     const url = `https://wa.me/${cleanNumber}?text=${encodeURIComponent(messageToSend)}`;
     window.open(url, '_blank', 'noopener,noreferrer');
   };
@@ -50,7 +53,7 @@ export const WhatsAppFloatingButton: React.FC<WhatsAppFloatingButtonProps> = ({
                 <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-[#075E54]" />
               </div>
               <div>
-                <h4 className="font-medium text-xs text-white">Zavraan Atelier Concierge</h4>
+                <h4 className="font-medium text-xs text-white">{displayBrand('Zavraan Atelier Concierge')}</h4>
                 <p className="text-[10px] text-emerald-200">Online · Fabric & Order Inquiries</p>
               </div>
             </div>
@@ -67,7 +70,7 @@ export const WhatsAppFloatingButton: React.FC<WhatsAppFloatingButtonProps> = ({
           <div className="p-3.5 bg-[#ECE5DD] space-y-2.5 text-xs">
             <div className="bg-white p-2.5 rounded-sm shadow-2xs max-w-[90%] text-stone-800 space-y-1">
               <p className="text-[11px] leading-relaxed">
-                As-salamu alaykum! Welcome to <strong>Zavraan</strong>.
+                As-salamu alaykum! Welcome to <strong>{brandName}</strong>.
               </p>
               <p className="text-[11px] leading-relaxed text-stone-600">
                 How may we assist you with our ladies unstitched summer lawn or winter khaddar & dhanak suits today?

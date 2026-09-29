@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { MessageCircle, Instagram, ArrowUpRight } from 'lucide-react';
+import { replaceBrandName, useBrandName } from '../context/BrandNameContext';
 
 interface FloatingSocialConciergeProps {
   whatsappNumber: string;
@@ -12,13 +13,15 @@ export const FloatingSocialConcierge: React.FC<FloatingSocialConciergeProps> = (
   defaultMessage = 'Hello Zavraan Atelier! I am inquiring about your ladies unstitched collection (Lawn / Khaddar / Dhanak).',
   instagramUrl,
 }) => {
+  const brandName = useBrandName();
   const [showTooltip, setShowTooltip] = useState(false);
+  const message = replaceBrandName(defaultMessage, brandName);
 
   // Sanitize number: remove non-digits
   const cleanNumber = whatsappNumber.replace(/[^0-9]/g, '');
 
   const handleOpenWhatsApp = () => {
-    const url = `https://wa.me/${cleanNumber}?text=${encodeURIComponent(defaultMessage)}`;
+    const url = `https://wa.me/${cleanNumber}?text=${encodeURIComponent(message)}`;
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
@@ -41,7 +44,7 @@ export const FloatingSocialConcierge: React.FC<FloatingSocialConciergeProps> = (
           onClick={handleOpenInstagram}
           className="w-11 h-11 bg-gradient-to-tr from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110 cursor-pointer"
           aria-label="Visit Instagram Page"
-          title="Visit Zavraan on Instagram"
+          title={`Visit ${brandName} on Instagram`}
         >
           <Instagram className="w-5 h-5 text-white" />
         </button>

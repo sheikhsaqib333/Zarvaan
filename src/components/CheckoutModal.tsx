@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CartItem, Currency, OrderConfirmation, PaymentMethod } from '../types/clothing';
 import { PaymentMethodsConfig } from '../types/siteConfig';
+import { replaceBrandName, useBrandName } from '../context/BrandNameContext';
 import { X, CheckCircle, Truck, CreditCard, Banknote, ShieldCheck, Printer, ArrowLeft, Smartphone, Building2, Store, QrCode } from 'lucide-react';
 
 interface CheckoutModalProps {
@@ -24,6 +25,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   onOrderCompleted,
   paymentConfig,
 }) => {
+  const brandName = useBrandName();
+  const displayBrand = (text: string) => replaceBrandName(text, brandName);
   const [customerName, setCustomerName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -97,7 +100,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         customerName,
         phone,
         email: email || 'Not provided',
-        address: paymentMethod === 'pay_at_studio' ? 'Self-Pickup: Zavraan Studio, Gulberg III, Lahore' : address,
+        address: paymentMethod === 'pay_at_studio' ? displayBrand('Self-Pickup: Zavraan Studio, Gulberg III, Lahore') : address,
         city,
         paymentMethod,
         paymentReference: ref,
@@ -325,7 +328,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <div className="p-3 bg-amber-50/70 border border-amber-200 text-stone-800 flex items-center gap-2">
                   <Store className="w-4 h-4 text-amber-900 shrink-0" />
                   <span>
-                    Pickup Location: <strong>{paymentConfig?.pay_at_studio?.address || 'Zavraan Luxury Studio, Plot 14-C, Gulberg III, Lahore'}</strong>. You will pay at the reception counter.
+                    Pickup Location: <strong>{displayBrand(paymentConfig?.pay_at_studio?.address || 'Zavraan Luxury Studio, Plot 14-C, Gulberg III, Lahore')}</strong>. You will pay at the reception counter.
                   </span>
                 </div>
               )}
@@ -467,7 +470,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   <p className="font-semibold text-stone-900">
                     {paymentConfig?.bank_transfer?.bankName || 'Meezan Bank Ltd (Official Atelier Account)'}
                   </p>
-                  <p>Account Title: <strong>{paymentConfig?.bank_transfer?.accountTitle || 'Zavraan Luxury Textiles'}</strong></p>
+                  <p>Account Title: <strong>{displayBrand(paymentConfig?.bank_transfer?.accountTitle || 'Zavraan Luxury Textiles')}</strong></p>
                   <p className="font-mono text-[11px]">
                     IBAN: {paymentConfig?.bank_transfer?.iban || 'PK62MEZN0001040105829101'}
                   </p>
@@ -518,7 +521,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
               {paymentMethod === 'nayapay_sadapay' && (
                 <div className="p-3 bg-stone-100 border border-stone-200 text-stone-700 space-y-1">
-                  <p className="font-semibold text-stone-900">Transfer to Zavraan SadaPay/NayaPay Handle</p>
+                  <p className="font-semibold text-stone-900">{displayBrand('Transfer to Zavraan SadaPay/NayaPay Handle')}</p>
                   <p>SadaPay / NayaPay ID: <strong className="font-mono text-stone-900">{paymentConfig?.nayapay_sadapay?.handle || '@zavraan.official'}</strong></p>
                   <p className="text-[11px] text-stone-500">
                     Zero interbank transaction charges. Order is confirmed upon receipt.

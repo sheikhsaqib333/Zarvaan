@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CartItem, Currency } from '../types/clothing';
 import { X, Trash2, Plus, Minus, Scissors, ShoppingCart, ArrowRight, Tag, ShieldCheck } from 'lucide-react';
+import { replaceBrandName, useBrandName } from '../context/BrandNameContext';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -21,6 +22,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   onRemoveItem,
   onOpenCheckout,
 }) => {
+  const brandName = useBrandName();
+  const displayBrand = (text: string) => replaceBrandName(text, brandName);
   const [promoCodeInput, setPromoCodeInput] = useState('');
   const [appliedPromo, setAppliedPromo] = useState<string | null>(null);
   const [promoError, setPromoError] = useState('');
@@ -117,7 +120,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 >
                   <img
                     src={item.product.primaryImage}
-                    alt={item.product.name}
+                    alt={displayBrand(item.product.name)}
                     className="w-20 h-24 object-cover rounded-xs border border-stone-200"
                   />
 
@@ -125,7 +128,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     <div>
                       <div className="flex justify-between items-start gap-2">
                         <h4 className="font-serif text-sm font-medium text-stone-900 leading-tight">
-                          {item.product.name}
+                          {displayBrand(item.product.name)}
                         </h4>
                         <button
                           onClick={() => onRemoveItem(item.id)}
@@ -138,7 +141,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
                       <div className="mt-1">
                         <span className="text-[10px] text-amber-900 bg-amber-50 px-1.5 py-0.5 border border-amber-200 font-medium">
-                          {item.product.category}
+                          {displayBrand(item.product.category)}
                         </span>
                       </div>
 

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Product, Currency } from '../types/clothing';
 import { Heart, Eye, ShoppingCart, Star, Video } from 'lucide-react';
+import { replaceBrandName, useBrandName } from '../context/BrandNameContext';
 
 interface ProductCardProps {
   product: Product;
@@ -21,7 +22,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onAddToCart,
   onSchedulePreview,
 }) => {
-  const [isHovered, setIsHovered] = useState(false);
+  const brandName = useBrandName();
+  const displayBrand = (text: string) => replaceBrandName(text, brandName);
   const formattedPrice =
     currency === 'PKR'
       ? `PKR ${product.pricePKR.toLocaleString()}`
@@ -30,8 +32,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   return (
     <div
       className="group relative flex flex-col bg-white rounded-2xl sm:rounded-3xl overflow-hidden border border-stone-200/90 transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
     >
       {/* Product Image Stage (Aspect 3:4) */}
       <div
@@ -39,8 +39,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         onClick={() => onQuickView(product)}
       >
         <img
-          src={isHovered && product.secondaryImage ? product.secondaryImage : product.primaryImage}
-          alt={product.name}
+          src={product.primaryImage}
+          alt={displayBrand(product.name)}
           className="w-full h-full object-cover object-center transition-all duration-700 group-hover:scale-105"
           referrerPolicy="no-referrer"
         />
@@ -48,7 +48,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         {/* Aesthetic Floating Tags */}
         <div className="absolute top-3 left-3 flex flex-col gap-1.5 items-start z-20">
           <span className="text-[10px] uppercase tracking-wider text-stone-900 bg-white/90 backdrop-blur-md border border-stone-200/80 px-2.5 py-0.5 rounded-full font-semibold shadow-xs">
-            {product.category}
+            {displayBrand(product.category)}
           </span>
           {product.isNewArrival && (
             <span className="text-[9px] uppercase tracking-widest bg-stone-950 text-amber-300 px-2 py-0.5 rounded-full font-bold shadow-xs">
@@ -138,12 +138,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             onClick={() => onQuickView(product)}
             className="font-bold text-base sm:text-lg text-stone-950 leading-snug line-clamp-1 hover:text-amber-800 transition-colors cursor-pointer"
           >
-            {product.name}
+            {displayBrand(product.name)}
           </h3>
 
           {/* Fabric Highlight */}
           <p className="text-xs text-stone-500 line-clamp-1 mt-1 font-light">
-            {product.fabricDetails.shirt}
+            {displayBrand(product.fabricDetails.shirt)}
           </p>
         </div>
 
