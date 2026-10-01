@@ -156,7 +156,7 @@ export const Hero: React.FC<HeroProps> = ({
             </div>
 
             {/* High-Impact Gen-Z Typography */}
-            <h1 className="text-4xl sm:text-5xl lg:text-[3.5rem] font-bold tracking-tight text-stone-950 leading-[1.08]">
+            <h1 className="text-4xl sm:text-5xl lg:text-[3.5rem] font-bold tracking-tight text-stone-950 leading-[1.08] break-words">
               {headline1} <br />
               <span className="font-serif italic font-normal text-amber-800 tracking-normal">
                 {headline2}
@@ -198,22 +198,22 @@ export const Hero: React.FC<HeroProps> = ({
             {/* Quantitative Proof Adjacency */}
             <div className="pt-4 border-t border-stone-200/80 grid grid-cols-3 gap-4 text-left">
               <div>
-                <span className="font-sans font-bold text-2xl sm:text-3xl text-stone-900 tabular-nums tracking-tight">
+                <span className="block break-words font-sans font-bold text-xl sm:text-3xl text-stone-900 tabular-nums tracking-tight">
                   {s1Val}
                 </span>
-                <p className="text-[11px] text-stone-500 uppercase tracking-wider mt-0.5">{s1Lbl}</p>
+                <p className="break-words text-[9px] sm:text-[11px] text-stone-500 uppercase tracking-wider mt-0.5">{s1Lbl}</p>
               </div>
               <div>
-                <span className="font-sans font-bold text-2xl sm:text-3xl text-stone-900 tabular-nums tracking-tight">
+                <span className="block break-words font-sans font-bold text-xl sm:text-3xl text-stone-900 tabular-nums tracking-tight">
                   {s2Val}
                 </span>
-                <p className="text-[11px] text-stone-500 uppercase tracking-wider mt-0.5">{s2Lbl}</p>
+                <p className="break-words text-[9px] sm:text-[11px] text-stone-500 uppercase tracking-wider mt-0.5">{s2Lbl}</p>
               </div>
               <div>
-                <span className="font-sans font-bold text-2xl sm:text-3xl text-stone-900 tabular-nums tracking-tight">
+                <span className="block break-words font-sans font-bold text-xl sm:text-3xl text-stone-900 tabular-nums tracking-tight">
                   {s3Val}
                 </span>
-                <p className="text-[11px] text-stone-500 uppercase tracking-wider mt-0.5">{s3Lbl}</p>
+                <p className="break-words text-[9px] sm:text-[11px] text-stone-500 uppercase tracking-wider mt-0.5">{s3Lbl}</p>
               </div>
             </div>
           </div>
@@ -222,7 +222,7 @@ export const Hero: React.FC<HeroProps> = ({
           <div className="lg:col-span-7 relative flex flex-col space-y-4">
             {/* Main Rounded Slideshow Viewport */}
             <div
-              className="relative aspect-[4/3] sm:aspect-[16/11] lg:aspect-[16/10.5] min-h-[380px] sm:min-h-[440px] lg:min-h-[500px] rounded-[2rem] sm:rounded-[2.5rem] overflow-hidden shadow-2xl border border-stone-300/80 bg-stone-950 group select-none"
+              className="relative aspect-[4/3] sm:aspect-[16/11] lg:aspect-[16/10.5] min-h-[320px] sm:min-h-[440px] lg:min-h-[500px] rounded-[2rem] sm:rounded-[2.5rem] overflow-hidden shadow-2xl border border-stone-300/80 bg-stone-950 group select-none"
               onMouseEnter={() => setIsHovered(true)}
               onMouseLeave={() => setIsHovered(false)}
             >
@@ -300,9 +300,9 @@ export const Hero: React.FC<HeroProps> = ({
                       {/* Browse Relevant Category Button with Gen-Z Aesthetic Micro-Interaction */}
                       <button
                         onClick={() => handleBrowseCategory(slide.category, slide.season)}
-                        className="bg-white/95 hover:bg-white text-stone-950 text-xs uppercase tracking-[0.16em] px-6 py-2.5 rounded-full font-bold flex items-center gap-2 cursor-pointer shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-103 backdrop-blur-md active:scale-95 group"
+                        className="max-w-full bg-white/95 hover:bg-white text-stone-950 text-[10px] sm:text-xs uppercase tracking-[0.12em] sm:tracking-[0.16em] px-4 sm:px-6 py-2.5 rounded-full font-bold flex items-center gap-2 cursor-pointer shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-103 backdrop-blur-md active:scale-95 group"
                       >
-                        <span>Browse {slide.category}</span>
+                        <span className="min-w-0 break-words">Browse {slide.category}</span>
                         <ArrowRight className="w-3.5 h-3.5 text-amber-800 transition-transform group-hover:translate-x-1" />
                       </button>
                     </div>

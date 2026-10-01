@@ -155,8 +155,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       <div className="p-4 sm:p-5 flex flex-col flex-1 justify-between gap-3 bg-[#FCFBF8]">
         <div>
           {/* Metadata clean unboxed row with star ratings */}
-          <div className="flex items-center justify-between text-xs text-stone-500 font-medium mb-1.5">
-            <span className="text-[11px] uppercase tracking-wider text-amber-950/80 font-semibold font-mono">
+          <div className="flex flex-wrap items-start sm:items-center justify-between gap-2 text-xs text-stone-500 font-medium mb-1.5">
+            <span className="min-w-0 break-words text-[10px] sm:text-[11px] uppercase tracking-wider text-amber-950/80 font-semibold font-mono">
               {product.pieces} · 8.1M Cut
             </span>
 

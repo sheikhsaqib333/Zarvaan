@@ -721,14 +721,14 @@ export default function App() {
 
           {activeSeason === 'all' && (
             <div className="flex flex-wrap items-center justify-between gap-3 bg-stone-100/80 p-3.5 rounded-2xl border border-stone-200">
-              <div className="flex items-center gap-2.5">
+              <div className="flex w-full min-w-0 flex-col items-stretch gap-2.5 sm:w-auto sm:flex-row sm:items-center">
                 <span className="text-xs font-bold uppercase tracking-wider text-stone-800">
                   Filter by Specific Category:
                 </span>
                 <select
                   value={selectedCategory}
                   onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="bg-white border border-stone-300 px-3.5 py-1.5 text-xs text-stone-900 font-bold rounded-full focus:outline-none cursor-pointer shadow-2xs"
+                  className="w-full min-w-0 sm:w-auto max-w-full bg-white border border-stone-300 px-3.5 py-1.5 text-xs text-stone-900 font-bold rounded-full focus:outline-none cursor-pointer shadow-2xs"
                 >
                   <option value="all">All Subcategories ({seasonCounts.all})</option>
                   <optgroup label="Summer Fabrics">

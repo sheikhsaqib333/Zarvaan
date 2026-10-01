@@ -658,8 +658,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   // ================= RENDER ACCESS GATE (IF UNAUTHENTICATED) =================
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-[#141211] text-stone-200 flex flex-col justify-center items-center p-4 selection:bg-amber-800">
-        <div className="max-w-md w-full bg-[#1C1A18] border border-stone-800 rounded-sm p-8 shadow-2xl relative overflow-hidden">
+      <div className="min-h-screen bg-[#141211] text-stone-200 flex flex-col justify-center items-center p-3 sm:p-4 selection:bg-amber-800">
+        <div className="max-w-md w-full bg-[#1C1A18] border border-stone-800 rounded-sm p-5 sm:p-8 shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-700 via-amber-500 to-amber-800" />
 
           <div className="text-center mb-6">
@@ -712,7 +712,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             </button>
           </form>
 
-          <div className="mt-6 pt-5 border-t border-stone-800/80 flex items-center justify-between text-xs text-stone-500">
+          <div className="mt-6 pt-5 border-t border-stone-800/80 flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3 text-xs text-stone-500">
             <span className="text-[11px]">Enter the current admin passcode configured in Security & Reset.</span>
             <button
               onClick={onExitAdmin}
@@ -732,7 +732,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     <div className="min-h-screen bg-[#F4F3EF] text-stone-900 flex flex-col font-sans">
       {/* Toast Alert */}
       {feedbackMsg && (
-        <div className="fixed bottom-6 right-6 z-50 bg-stone-900 text-white px-5 py-3 text-xs font-medium shadow-2xl flex items-center gap-2.5 border border-amber-600/50 rounded-xs animate-fadeIn">
+        <div className="fixed bottom-3 left-3 right-3 sm:bottom-6 sm:left-auto sm:right-6 z-50 bg-stone-900 text-white px-4 sm:px-5 py-3 text-xs font-medium shadow-2xl flex items-center gap-2.5 border border-amber-600/50 rounded-xs animate-fadeIn sm:max-w-md">
           <Check className="w-4 h-4 text-emerald-400" />
           <span>{feedbackMsg}</span>
         </div>
@@ -740,43 +740,45 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
       {/* Admin Top Navigation Bar */}
       <header className="bg-[#1A1817] text-white border-b border-stone-800 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-0 sm:min-h-16 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 flex items-center gap-2 sm:gap-3">
             <div className="w-8 h-8 rounded-full bg-amber-700/80 border border-amber-500/50 flex items-center justify-center font-serif font-bold text-amber-200 text-sm">
               {brandName.charAt(0).toUpperCase()}
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-serif text-lg tracking-wider font-medium text-white">
+                <span className="max-w-[36vw] sm:max-w-none truncate font-serif text-base sm:text-lg tracking-wider font-medium text-white">
                   {brandName.toUpperCase()}
                 </span>
-                <span className="bg-amber-900/60 border border-amber-700/60 text-amber-300 text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-semibold">
+                <span className="hidden md:inline-flex bg-amber-900/60 border border-amber-700/60 text-amber-300 text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-semibold">
                   Separate Master Admin
                 </span>
               </div>
-              <p className="text-[10px] text-stone-400 font-light">
+              <p className="hidden sm:block text-[10px] text-stone-400 font-light">
                 Secure management workspace · Isolated from customer view
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex w-full sm:w-auto items-center justify-between sm:justify-end gap-2">
             <button
               onClick={handleSaveConfig}
-              className="bg-amber-600 hover:bg-amber-500 text-white text-xs px-4 py-2 font-medium flex items-center gap-1.5 rounded-xs transition-colors shadow-sm cursor-pointer"
+              className="flex-1 sm:flex-none bg-amber-600 hover:bg-amber-500 text-white text-[11px] sm:text-xs px-2.5 sm:px-4 py-2 font-medium flex items-center justify-center gap-1.5 rounded-xs transition-colors shadow-sm cursor-pointer"
               title="Save all changes live"
             >
               <Save className="w-3.5 h-3.5" />
-              <span>Publish All Changes</span>
+              <span className="sm:hidden">Publish</span>
+              <span className="hidden sm:inline">Publish All Changes</span>
             </button>
 
             <button
               onClick={handlePreviewStore}
-              className="bg-white/10 hover:bg-white/20 text-stone-200 text-xs px-3.5 py-2 font-medium flex items-center gap-1.5 rounded-xs transition-colors cursor-pointer border border-white/15"
+              className="flex-1 sm:flex-none bg-white/10 hover:bg-white/20 text-stone-200 text-[11px] sm:text-xs px-2.5 sm:px-3.5 py-2 font-medium flex items-center justify-center gap-1.5 rounded-xs transition-colors cursor-pointer border border-white/15"
               title="Preview Customer Website"
             >
               <Eye className="w-3.5 h-3.5 text-amber-300" />
-              <span>View Customer Store</span>
+              <span className="sm:hidden">Preview</span>
+              <span className="hidden sm:inline">View Customer Store</span>
             </button>
 
             <button
@@ -790,8 +792,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         </div>
 
         {/* Tab Strip */}
-        <div className="bg-[#121110] border-t border-stone-800/80 px-4 sm:px-6 lg:px-8 overflow-x-auto">
-          <div className="max-w-7xl mx-auto flex items-center gap-1 text-xs py-1">
+        <div className="bg-[#121110] border-t border-stone-800/80 px-2 sm:px-6 lg:px-8 overflow-x-auto overscroll-x-contain">
+          <div className="max-w-7xl min-w-max mx-auto flex items-center gap-1 text-xs py-1">
             <button
               onClick={() => setActiveTab('dashboard')}
               className={`px-3.5 py-2 font-medium flex items-center gap-2 rounded-xs whitespace-nowrap transition-colors cursor-pointer ${
@@ -916,7 +918,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       </header>
 
       {/* Main Workspace Body */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-1">
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-8 w-full min-w-0 flex-1">
         {activeTab === 'dashboard' && (
           <div className="bg-white border border-stone-200 rounded-xs shadow-xs p-6 sm:p-8 space-y-6">
             <div>
