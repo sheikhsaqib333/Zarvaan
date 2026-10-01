@@ -155,7 +155,7 @@ app.use(cors({
     }
     callback(new Error('Origin is not allowed by CORS.'));
   },
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Visitor-Id'],
 }));
 app.use((req, res, next) => {
   const isHealthCheck = req.method === 'GET' && req.path === '/api/health';
@@ -479,3 +479,4 @@ app.get('/api/migration/firebase', requireAdmin, (_req, res) => {
 app.listen(port, () => {
   console.log(`Zavraan backend running on http://localhost:${port}`);
 });
+

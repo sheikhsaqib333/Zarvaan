@@ -1,5 +1,5 @@
 {
-  "name": "react-example",
+  "name": "zarvaan-w3s7",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -45,6 +45,7 @@
     "esbuild": "^0.28.2",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "wrangler": "^4.145.0"
   }
 }

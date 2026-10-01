@@ -1,6 +1,18 @@
-name = "zarvaan-api-edge"
-main = "edge-cache-worker.js"
-compatibility_date = "2026-09-29"
+name = "zarvaan-store"
+main = "cloudflare-worker.ts"
+compatibility_date = "2026-10-01"
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/uploads/*"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "zarvaan-store"
+database_id = "2c1e0f8f-f930-4906-aab6-e4fc8138a82f"
+migrations_dir = "migrations"
 
 [vars]
-BACKEND_ORIGIN = "https://zarvaan-api.onrender.com"
+ALLOWED_ORIGINS = "https://zarvaan-w3s7.vercel.app"
